@@ -1,0 +1,31 @@
+# --- Byte-compiled / optimized / DLL files ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- Operating System Files ---
+.DS_Store
+Thumbs.db
+
+# --- Virtual Environments ---
+venv/
+env/
+ENV/
+.env
+
+# --- WCA Data (CRITICAL: DO NOT UPLOAD) ---
+# These files are several gigabytes and will break GitHub/Render
+*.tsv
+*.csv
+*.sql
+WCA_export_*
+
+# --- Local Cache ---
+# We allow .msgpack so Render can access the processed PH data
+# If you want to keep your cache private, add it here, 
+# but for Render Free Tier, it MUST be uploaded.
+!ph_wca_rankings.msgpack
+
+# --- IDEs ---
+.vscode/
+.idea/
