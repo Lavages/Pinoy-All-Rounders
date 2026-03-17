@@ -17,7 +17,6 @@ EVENTS = {
 }
 
 def decode_mbld_vectorized(series):
-    """Vectorized decoding of MBLD results into points."""
     valid_mask = series.notna() & (series > 0)
     scores = pd.Series(0.0, index=series.index)
     if not valid_mask.any(): return scores
@@ -30,60 +29,77 @@ def decode_mbld_vectorized(series):
 
 def load_and_cache():
     if os.path.exists(CACHE_FILE) and os.path.getsize(CACHE_FILE) > 0:
-        print("🚀 Loading Rankings from Cache...")
         try:
             with open(CACHE_FILE, 'rb') as f:
                 data = msgpack.unpackb(f.read(), raw=False)
-                # Reconstruct DataFrames from the slimmed dictionaries
-                s_df = pd.DataFrame(data['single']).set_index('person_id')
-                a_df = pd.DataFrame(data['average']).set_index('person_id')
-                return pd.DataFrame(data['names']), s_df, a_df, data.get('last_update', 'Unknown')
-        except Exception as e:
-            print(f"⚠️ Cache read failed: {e}")
+                return pd.DataFrame(data['names']), pd.DataFrame(data['single']), pd.DataFrame(data['average']), data.get('last_update', 'Unknown'), pd.DataFrame(data.get('podiums', []))
+        except: pass
 
-    print("📦 Processing TSVs...")
     try:
-        # 1. Get Export Date
         export_date = datetime.fromtimestamp(os.path.getmtime("WCA_export_results.tsv")).strftime('%b-%d, %Y')
+        res_df = pd.read_csv("WCA_export_results.tsv", sep="\t", 
+                             usecols=['person_id', 'person_name', 'person_country_id', 'pos', 'round_type_id', 'event_id', 'best', 'average', 'format_id'], 
+                             low_memory=False)
         
-        # 2. Process Names (Only Philippines)
-        res_df = pd.read_csv("WCA_export_results.tsv", sep="\t", usecols=['person_id', 'person_name', 'person_country_id'], low_memory=False)
-        ph_names = res_df[res_df['person_country_id'] == 'Philippines'].drop_duplicates('person_id')[['person_id', 'person_name']]
+        ph_res_all = res_df[res_df['person_country_id'] == 'Philippines']
+        ph_names = ph_res_all.drop_duplicates('person_id')[['person_id', 'person_name']]
         ph_ids = ph_names['person_id'].unique()
 
-        # 3. Process Ranks (Only Philippines & Only necessary columns)
-        cols_to_keep = ['person_id', 'event_id', 'best', 'country_rank']
+        # --- REVISED PODIUM FILTER ---
+        pod_filter = ph_res_all[
+            (ph_res_all['pos'] <= 3) & 
+            (ph_res_all['round_type_id'].str.lower().isin(['f', 'c']))
+        ].copy()
+
+        def is_valid_podium(row):
+            ev = row['event_id']
+            fmt = row['format_id'] 
+            # DNF is -1, DNS is -2. Any valid result must be > 0.
+            
+            # 1. Blindfolded events are always ranked by Single
+            if ev in ['333bf', '444bf', '555bf', '333mbf']:
+                return row['best'] > 0
+            
+            # 2. FMC logic
+            if ev == '333fm':
+                if fmt == 'm': # Mean of 3 format
+                    return row['average'] > 0
+                return row['best'] > 0 # Best of X format
+            
+            # 3. Standard events
+            # If the format is 'a' (Avg of 5) or 'm' (Mean of 3), the podium is based on Average
+            if fmt in ['a', 'm']:
+                return row['average'] > 0
+            
+            # 4. Fallback for Best of X rounds
+            return row['best'] > 0
+
+        ph_podiums = pod_filter[pod_filter.apply(is_valid_podium, axis=1)]
+
+        s_ranks = pd.read_csv("WCA_export_ranks_single.tsv", sep="\t", usecols=['person_id', 'event_id', 'best', 'country_rank'], low_memory=False)
+        a_ranks = pd.read_csv("WCA_export_ranks_average.tsv", sep="\t", usecols=['person_id', 'event_id', 'best', 'country_rank'], low_memory=False)
         
-        s_ranks = pd.read_csv("WCA_export_ranks_single.tsv", sep="\t", usecols=cols_to_keep, low_memory=False)
-        a_ranks = pd.read_csv("WCA_export_ranks_average.tsv", sep="\t", usecols=cols_to_keep, low_memory=False)
-        
-        # CRITICAL OPTIMIZATION: Filter for PH IDs before saving to cache
-        # This reduces the rows from millions (Global) to thousands (PH Only)
         ph_s_ranks = s_ranks[s_ranks['person_id'].isin(ph_ids)]
         ph_a_ranks = a_ranks[a_ranks['person_id'].isin(ph_ids)]
 
         cache_data = {
-            'names': ph_names.to_dict(orient='records'),
-            'single': ph_s_ranks.to_dict(orient='records'),
-            'average': ph_a_ranks.to_dict(orient='records'),
+            'names': ph_names.to_dict('records'),
+            'single': ph_s_ranks.to_dict('records'),
+            'average': ph_a_ranks.to_dict('records'),
+            'podiums': ph_podiums[['person_id', 'event_id', 'pos']].to_dict('records'),
             'last_update': export_date
         }
-        
         with open(CACHE_FILE, 'wb') as f:
             f.write(msgpack.packb(cache_data))
 
-        print(f"✅ Cache Created: {CACHE_FILE}")
-        return ph_names, ph_s_ranks.set_index('person_id'), ph_a_ranks.set_index('person_id'), export_date
-
+        return ph_names, ph_s_ranks, ph_a_ranks, export_date, ph_podiums
     except Exception as e:
-        print(f"❌ Error during load: {e}")
-        return None, None, None, "Unknown"
+        return None, None, None, "Unknown", pd.DataFrame()
 
-ph_names, s_ranks, a_ranks, last_update_date = load_and_cache()
+ph_names, s_ranks, a_ranks, last_update_date, ph_podiums_raw = load_and_cache()
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
-    # Support both POST (form) and GET (pagination links)
     if request.method == 'POST':
         selected_events = request.form.getlist('events')
         rank_type = request.form.get('rank_type', 'single')
@@ -92,157 +108,75 @@ def index():
         rank_type = request.args.get('rank_type', 'single')
 
     if not selected_events: selected_events = ['333']
-    
-    page = int(request.args.get('page', 1))
-    per_page = 50
+    page, per_page = int(request.args.get('page', 1)), 50
     leaderboard = []
 
-    if ph_names is None: return "Data Load Error."
-    ph_ids = ph_names['person_id'].values
-
-    # --- LOGIC: LEVEL ---
-    if rank_type == 'level':
-        # Initialize matrix with 0.0 for all PH cubers and selected events
-        level_matrix = pd.DataFrame(0.0, index=ph_ids, columns=selected_events)
-        
+    if rank_type == 'podium':
+        pods = ph_podiums_raw[ph_podiums_raw['event_id'].isin(selected_events)]
+        if not pods.empty:
+            tally = pods.groupby(['person_id', 'pos']).size().unstack(fill_value=0)
+            for p in [1, 2, 3]: 
+                if p not in tally.columns: tally[p] = 0
+            tally['total'] = tally[1] + tally[2] + tally[3]
+            res = tally.merge(ph_names, left_index=True, right_on='person_id').sort_values(['total', 1, 2, 3], ascending=False)
+            for _, row in res.iterrows():
+                person_pods = pods[pods['person_id'] == row['person_id']]
+                ev_data = person_pods.groupby('event_id').size().to_dict()
+                leaderboard.append({
+                    'wca_id': row['person_id'], 'name': row['person_name'], 'total': int(row['total']),
+                    'gold': int(row[1]), 'silver': int(row[2]), 'bronze': int(row[3]),
+                    'ranks': {ev: int(ev_data.get(ev, 0)) for ev in selected_events}
+                })
+    elif rank_type == 'level':
+        level_matrix = pd.DataFrame(0.0, index=ph_names['person_id'].values, columns=selected_events)
         for ev in selected_events:
-            is_bld = ev in ['333bf', '444bf', '555bf', '333mbf']
-            data_source = s_ranks if is_bld else a_ranks
-            global_ev = data_source[data_source['event_id'] == ev]['best'].dropna()
-            
+            data_source = s_ranks if ev in ['333bf', '444bf', '555bf', '333mbf'] else a_ranks
+            global_ev = data_source[data_source['event_id'] == ev].set_index('person_id')['best'].dropna()
             if global_ev.empty: continue
-            
-            boundaries = {
-                100: global_ev.min(),
-                95: global_ev.quantile(0.001),
-                90: global_ev.quantile(0.01),
-                80: global_ev.quantile(0.05),
-                70: global_ev.quantile(0.10),
-                60: global_ev.quantile(0.20),
-                50: global_ev.quantile(0.50)
-            }
-            
-            def get_score(val):
-                if pd.isna(val) or val <= 0: return 0
-                if val <= boundaries[100]: return 100
-                if val <= boundaries[95]: return 95
-                if val <= boundaries[90]: return 90
-                if val <= boundaries[80]: return 80
-                if val <= boundaries[70]: return 70
-                if val <= boundaries[60]: return 60
-                if val <= boundaries[50]: return 50
+            b = {100: global_ev.min(), 95: global_ev.quantile(0.001), 90: global_ev.quantile(0.01), 80: global_ev.quantile(0.05), 70: global_ev.quantile(0.10), 60: global_ev.quantile(0.20), 50: global_ev.quantile(0.50)}
+            def get_s(v):
+                if pd.isna(v) or v <= 0: return 0
+                for s in [100, 95, 90, 80, 70, 60, 50]:
+                    if v <= b[s]: return s
                 return 40
-
-            # Get scores for PH cubers and update the matrix
-            ph_results = global_ev[global_ev.index.isin(ph_ids)]
-            event_scores = ph_results.apply(get_score)
-            level_matrix.update(event_scores.to_frame(name=ev))
-
+            level_matrix.update(global_ev[global_ev.index.isin(ph_names['person_id'])].apply(get_s).to_frame(name=ev))
         level_matrix['total'] = level_matrix[selected_events].mean(axis=1)
-        res = level_matrix[level_matrix['total'] > 0].merge(ph_names, left_index=True, right_on='person_id')
-        res = res.sort_values('total', ascending=False)
-        
-        for _, row in res.iterrows():
-            leaderboard.append({
-                'wca_id': row['person_id'], 'name': row['person_name'], 'total': round(row['total'], 2),
-                'ranks': {ev: int(float(row[ev])) for ev in selected_events}
-            })
-
+        res = level_matrix[level_matrix['total'] > 0].merge(ph_names, left_index=True, right_on='person_id').sort_values('total', ascending=False)
+        for _, r in res.iterrows():
+            leaderboard.append({'wca_id': r['person_id'], 'name': r['person_name'], 'total': round(r['total'], 2), 'ranks': {ev: int(r[ev]) for ev in selected_events}})
     elif rank_type == 'kinch':
-        # 1. Filter for Filipinos and select events
-        ph_s = s_ranks[s_ranks.index.isin(ph_ids)]
-        ph_a = a_ranks[a_ranks.index.isin(ph_ids)]
-
-        # 2. Identify the NR (National Record) value for each event
-        # We find the 'best' time/score where country_rank is 1
-        nr_s = ph_s[ph_s['country_rank'] == 1].set_index('event_id')['best']
-        nr_a = ph_a[ph_a['country_rank'] == 1].set_index('event_id')['best']
-        
-        # 3. Pivot Personal Bests (PBs) for all PH cubers
-        p_s = ph_s.pivot_table(index='person_id', columns='event_id', values='best').reindex(columns=selected_events)
-        p_a = ph_a.pivot_table(index='person_id', columns='event_id', values='best').reindex(columns=selected_events)
-        
-        kinch_matrix = pd.DataFrame(0.0, index=p_s.index, columns=selected_events)
-        
+        ph_s = s_ranks.set_index('person_id'); ph_a = a_ranks.set_index('person_id')
+        nr_s = ph_s[ph_s['country_rank'] == 1].reset_index().set_index('event_id')['best']
+        nr_a = ph_a[ph_a['country_rank'] == 1].reset_index().set_index('event_id')['best']
+        p_s = ph_s.reset_index().pivot_table(index='person_id', columns='event_id', values='best').reindex(columns=selected_events)
+        p_a = ph_a.reset_index().pivot_table(index='person_id', columns='event_id', values='best').reindex(columns=selected_events)
+        km = pd.DataFrame(0.0, index=p_s.index, columns=selected_events)
         for ev in selected_events:
-            # RULE: 3BLD, 4BLD, 5BLD, and FMC (Better of Single or Average)
             if ev in ['333bf', '444bf', '555bf', '333fm']:
-                val_nr_s = nr_s.get(ev, 0)
-                val_nr_a = nr_a.get(ev, 0)
-                
-                score_s = (val_nr_s / p_s[ev] * 100).fillna(0)
-                score_a = (val_nr_a / p_a[ev] * 100).fillna(0)
-                kinch_matrix[ev] = np.maximum(score_s, score_a)
-                
-            # RULE: MBLD (Points + Time Decimal from Single)
+                km[ev] = np.maximum((nr_s.get(ev, 0)/p_s[ev]*100).fillna(0), (nr_a.get(ev, 0)/p_a[ev]*100).fillna(0))
             elif ev == '333mbf':
-                val_nr_mbf = nr_s.get(ev, 0)
-                if val_nr_mbf > 0:
-                    nr_pts = decode_mbld_vectorized(pd.Series([val_nr_mbf])).iloc[0]
-                    player_pts = decode_mbld_vectorized(p_s[ev])
-                    kinch_matrix[ev] = (player_pts / nr_pts * 100).clip(lower=0).fillna(0)
-            
-            # RULE: Standard Events (Average Only)
+                if nr_s.get(ev, 0) > 0:
+                    km[ev] = (decode_mbld_vectorized(p_s[ev])/decode_mbld_vectorized(pd.Series([nr_s[ev]])).iloc[0]*100).clip(lower=0).fillna(0)
             else:
-                val_nr_a = nr_a.get(ev, 0)
-                if val_nr_a > 0:
-                    kinch_matrix[ev] = (val_nr_a / p_a[ev] * 100).fillna(0)
-
-        # 4. Final Average across all selected events
-        kinch_matrix['total'] = kinch_matrix[selected_events].mean(axis=1)
-        
-        # Merge with names and sort descending
-        res = kinch_matrix[kinch_matrix['total'] > 0].merge(ph_names, left_index=True, right_on='person_id')
-        res = res.sort_values('total', ascending=False)
-        
-        for _, row in res.iterrows():
-            leaderboard.append({
-                'wca_id': row['person_id'], 
-                'name': row['person_name'], 
-                'total': round(row['total'], 2), 
-                'ranks': {ev: round(row[ev], 2) for ev in selected_events}
-            })
+                if nr_a.get(ev, 0) > 0: km[ev] = (nr_a[ev]/p_a[ev]*100).fillna(0)
+        km['total'] = km[selected_events].mean(axis=1)
+        res = km[km['total'] > 0].merge(ph_names, left_index=True, right_on='person_id').sort_values('total', ascending=False)
+        for _, r in res.iterrows():
+            leaderboard.append({'wca_id': r['person_id'], 'name': r['person_name'], 'total': round(r['total'], 2), 'ranks': {ev: round(r[ev], 2) for ev in selected_events}})
     else:
         df = s_ranks if rank_type == 'single' else a_ranks
-        ph_filtered = df[(df['event_id'].isin(selected_events)) & (df.index.isin(ph_ids))].reset_index()
+        ph_filtered = df[(df['event_id'].isin(selected_events)) & (df['person_id'].isin(ph_names['person_id']))]
         if not ph_filtered.empty:
-            max_ranks = ph_filtered.groupby('event_id')['country_rank'].max().to_dict()
-            pivot = ph_filtered.pivot(index='person_id', columns='event_id', values='country_rank')
-            
-            # Drop people who haven't competed in ANY of the selected events
-            pivot = pivot.dropna(how='all')
-            
-            for ev in selected_events:
-                penalty = max_ranks.get(ev, 0) + 1
-                pivot[ev] = pivot[ev].fillna(penalty)
-            
-            pivot['total'] = pivot[selected_events].sum(axis=1)
-            
-            # CRITICAL: Filter out anyone with 0 total (though pivot.dropna(how='all') mostly covers this)
-            res = pivot[pivot['total'] > 0].merge(ph_names, left_index=True, right_on='person_id').sort_values('total')
-            
-            for _, row in res.iterrows():
-                leaderboard.append({
-                    'wca_id': row['person_id'], 
-                    'name': row['person_name'], 
-                    'total': int(row['total']), 
-                    'ranks': {ev: int(row[ev]) for ev in selected_events}, 
-                    'max_ranks': max_ranks
-                })
+            max_r = ph_filtered.groupby('event_id')['country_rank'].max().to_dict()
+            piv = ph_filtered.pivot(index='person_id', columns='event_id', values='country_rank').dropna(how='all')
+            for ev in selected_events: piv[ev] = piv[ev].fillna(max_r.get(ev, 0) + 1)
+            piv['total'] = piv[selected_events].sum(axis=1)
+            res = piv.merge(ph_names, left_index=True, right_on='person_id').sort_values('total')
+            for _, r in res.iterrows():
+                leaderboard.append({'wca_id': r['person_id'], 'name': r['person_name'], 'total': int(r['total']), 'ranks': {ev: int(r[ev]) for ev in selected_events}})
 
-    # Pagination
-    total_items = len(leaderboard)
-    total_pages = math.ceil(total_items / per_page)
-    paged_leaderboard = leaderboard[(page-1)*per_page : page*per_page]
-
-    return render_template('index.html', 
-                           events=EVENTS, 
-                           leaderboard=paged_leaderboard, 
-                           selected=selected_events, 
-                           type=rank_type, 
-                           updated=last_update_date,
-                           page=page,
-                           total_pages=total_pages)
+    total_pages = math.ceil(len(leaderboard) / per_page)
+    return render_template('index.html', events=EVENTS, leaderboard=leaderboard[(page-1)*per_page:page*per_page], selected=selected_events, type=rank_type, updated=last_update_date, page=page, total_pages=total_pages)
 
 if __name__ == '__main__':
     app.run(port=5000, debug=True)
