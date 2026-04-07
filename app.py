@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template
+from flask import Flask, request, render_template, jsonify
 import pandas as pd
 import os
 import msgpack
@@ -17,116 +17,198 @@ EVENTS = {
 }
 
 def format_wca_time(value, event_id):
-    """Formats WCA integers into readable strings (e.g., 71742 -> 7:17.42)"""
-    if value <= 0: return ""
-    if event_id == '333fm': return str(value)
-    if event_id == '333mbf':
-        s = str(value).zfill(10)
-        solved = 99 - int(s[0:2])
-        missed = int(s[8:10])
-        total = solved + missed
-        time_sec = int(s[2:7])
-        return f"{solved}/{total} {time_sec // 60}:{str(time_sec % 60).zfill(2)}"
+    """
+    Formats WCA integers into readable strings.
+    Handles standard times, FMC (moves), and MBLD (solved/attempted time).
+    """
+    if value <= 0 or pd.isna(value): 
+        return "DNF" if value == -1 else "-"
     
-    centiseconds = value % 100
-    seconds = (value // 100) % 60
-    minutes = (value // 6000) % 60
-    hours = (value // 360000)
+    # 1. FMC (Fewest Moves)
+    if event_id == '333fm': 
+        return str(int(value))
+    
+    # 2. Multi-Blind (333mbf) - New Format: 0DDTTTTTMM
+    if event_id == '333mbf':
+        s = str(int(value)).zfill(10)
+        
+        # Parse based on WCA New Multi-Blind rules:
+        # difference = 99 - DD
+        dd = int(s[1:3])
+        time_sec = int(s[3:8])
+        mm = int(s[8:10])
+        
+        difference = 99 - dd
+        solved = difference + mm
+        attempted = solved + mm
+        
+        # Handle "Unknown Time" edge case
+        if time_sec == 99999:
+            return f"{solved}/{attempted} ?:??"
+            
+        minutes = time_sec // 60
+        seconds = time_sec % 60
+        return f"{solved}/{attempted} {minutes}:{str(seconds).zfill(2)}"
+    
+    # 3. Standard Time Formatting (Sub-minute, Minutes, and Hours)
+    val = int(value)
+    cs = val % 100
+    s = (val // 100) % 60
+    m = (val // 6000) % 60
+    h = (val // 360000)
 
-    res = f"{seconds}.{str(centiseconds).zfill(2)}"
-    if minutes > 0 or hours > 0:
-        res = f"{minutes}:{str(seconds).zfill(2)}.{str(centiseconds).zfill(2)}"
-    if hours > 0:
-        res = f"{hours}:{str(minutes).zfill(2)}:{str(seconds).zfill(2)}.{str(centiseconds).zfill(2)}"
-    return res
+    if h > 0:
+        return f"{h}:{str(m).zfill(2)}:{str(s).zfill(2)}.{str(cs).zfill(2)}"
+    elif m > 0:
+        return f"{m}:{str(s).zfill(2)}.{str(cs).zfill(2)}"
+    else:
+        return f"{s}.{str(cs).zfill(2)}"
 
 def decode_mbld_vectorized(series):
     valid_mask = series.notna() & (series > 0)
     scores = pd.Series(0.0, index=series.index)
     if not valid_mask.any(): return scores
+    
+    # Ensure 10 digits: 0DDTTTTTMM
     s = series[valid_mask].astype(np.int64).astype(str).str.zfill(10)
-    solved = 99 - s.str[0:2].astype(int)
-    missed = s.str[8:10].astype(int)
-    time_sec = s.str[2:7].astype(int)
-    scores[valid_mask] = (solved - missed) + ((3600 - time_sec) / 3600)
+    
+    # difference = 99 - DD
+    difference = 99 - s.str[1:3].astype(int)
+    # TTTTT = time in seconds
+    time_sec = s.str[3:8].astype(int)
+    
+    # To rank correctly: Points are primary, Time is secondary (tie-breaker)
+    # We use (Difference) + (Remaining time ratio)
+    # This ensures a better performance results in a HIGHER decoded score.
+    scores[valid_mask] = difference + ((3600 - time_sec) / 3600)
     return scores
 
 def load_and_cache():
-    # 1. Try loading from cache first
     if os.path.exists(CACHE_FILE) and os.path.getsize(CACHE_FILE) > 0:
         try:
             with open(CACHE_FILE, 'rb') as f:
                 data = msgpack.unpackb(f.read(), raw=False)
-                if 'all_results' in data:
-                    df_all = pd.DataFrame(data.get('all_results', []))
-                    # Convert strings back to Timestamps for internal consistency
-                    if not df_all.empty and 'date' in df_all.columns:
-                        df_all['date'] = pd.to_datetime(df_all['date'])
-                        
-                    return (pd.DataFrame(data['names']), 
-                            pd.DataFrame(data['single']), 
-                            pd.DataFrame(data['average']), 
-                            data.get('last_update', 'Unknown'), 
-                            pd.DataFrame(data.get('podiums', [])), 
-                            df_all)
+                df_all = pd.DataFrame(data.get('all_results', []))
+                if not df_all.empty and 'date' in df_all.columns:
+                    df_all['date'] = pd.to_datetime(df_all['date'])
+                return (pd.DataFrame(data['names']), pd.DataFrame(data['single']), 
+                        pd.DataFrame(data['average']), data.get('last_update', 'Unknown'), 
+                        pd.DataFrame(data.get('podiums', [])), df_all)
         except Exception as e:
             print(f"Cache read error: {e}")
 
-    # 2. If no cache or old cache, load from TSVs
     try:
         required_files = ["WCA_export_results.tsv", "WCA_export_ranks_single.tsv", 
                           "WCA_export_ranks_average.tsv", "WCA_export_competitions.tsv"]
         for f in required_files:
-            if not os.path.exists(f):
-                print(f"CRITICAL ERROR: {f} is missing!")
-                return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), "File Error", pd.DataFrame(), pd.DataFrame()
+            if not os.path.exists(f): return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), "Error", pd.DataFrame(), pd.DataFrame()
 
         export_date = datetime.fromtimestamp(os.path.getmtime("WCA_export_results.tsv")).strftime('%b-%d, %Y')
-        
-        # Load Results
-        res_df = pd.read_csv("WCA_export_results.tsv", sep="\t", 
-                             usecols=['person_id', 'person_name', 'person_country_id', 'pos', 'round_type_id', 'event_id', 'best', 'average', 'competition_id'], 
-                             low_memory=False)
-        
-        # Load Competitions
+        res_df = pd.read_csv("WCA_export_results.tsv", sep="\t", usecols=['person_id', 'person_name', 'person_country_id', 'pos', 'round_type_id', 'event_id', 'best', 'average', 'competition_id'], low_memory=False)
         comps = pd.read_csv("WCA_export_competitions.tsv", sep="\t", usecols=['id', 'year', 'month', 'day', 'name'])
         comps['date'] = pd.to_datetime(comps[['year', 'month', 'day']])
-        
-        # Filter for Philippines and merge with competition data
         ph_res_all = res_df[res_df['person_country_id'] == 'Philippines'].merge(comps[['id', 'date', 'name']], left_on='competition_id', right_on='id')
         ph_names = ph_res_all.drop_duplicates('person_id')[['person_id', 'person_name']]
         ph_ids = ph_names['person_id'].unique()
-
-        # Load Ranks
         s_ranks = pd.read_csv("WCA_export_ranks_single.tsv", sep="\t", usecols=['person_id', 'event_id', 'best', 'country_rank'], low_memory=False)
         a_ranks = pd.read_csv("WCA_export_ranks_average.tsv", sep="\t", usecols=['person_id', 'event_id', 'best', 'country_rank'], low_memory=False)
-        
         ph_s_ranks = s_ranks[s_ranks['person_id'].isin(ph_ids)]
         ph_a_ranks = a_ranks[a_ranks['person_id'].isin(ph_ids)]
-
-        # CRITICAL: Convert date to string before msgpack serialization
-        # This prevents the "can not serialize 'Timestamp' object" error
         ph_res_all_serializable = ph_res_all.copy()
         ph_res_all_serializable['date'] = ph_res_all_serializable['date'].dt.strftime('%Y-%m-%d')
-
-        # Save to Cache
         cache_data = {
-            'names': ph_names.to_dict('records'),
-            'single': ph_s_ranks.to_dict('records'),
-            'average': ph_a_ranks.to_dict('records'),
-            'podiums': ph_res_all[(ph_res_all['pos'] <= 3) & (ph_res_all['round_type_id'].isin(['f', 'c']))][['person_id', 'event_id', 'pos']].to_dict('records'),
+            'names': ph_names.to_dict('records'), 'single': ph_s_ranks.to_dict('records'),
+            'average': ph_a_ranks.to_dict('records'), 'podiums': ph_res_all[(ph_res_all['pos'] <= 3) & (ph_res_all['round_type_id'].isin(['f', 'c']))][['person_id', 'event_id', 'pos']].to_dict('records'),
             'all_results': ph_res_all_serializable[['person_id', 'event_id', 'pos', 'round_type_id', 'date', 'name', 'best', 'average']].to_dict('records'),
             'last_update': export_date
         }
-        
-        with open(CACHE_FILE, 'wb') as f:
-            f.write(msgpack.packb(cache_data))
-
+        with open(CACHE_FILE, 'wb') as f: f.write(msgpack.packb(cache_data))
         return ph_names, ph_s_ranks, ph_a_ranks, export_date, pd.DataFrame(cache_data['podiums']), ph_res_all
-        
     except Exception as e:
-        print(f"Error loading TSVs: {e}")
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), "Error", pd.DataFrame(), pd.DataFrame()
+
+@app.route('/battle', methods=['GET', 'POST'])
+def battle():
+    c1_id = request.args.get('c1', '')
+    c2_id = request.args.get('c2', '')
+    
+    comp1, comp2 = None, None
+    battle_data = []
+    kinch_scores = {'c1': {}, 'c2': {}}
+    summary = {'c1_wins': 0, 'c2_wins': 0, 'c1_total_kinch': 0, 'c2_total_kinch': 0}
+
+    if c1_id and c2_id:
+        # Resolve Names/IDs
+        def find_person(query):
+            match = ph_names[(ph_names['person_id'] == query) | (ph_names['person_name'].str.contains(query, case=False, na=False))]
+            return match.iloc[0].to_dict() if not match.empty else None
+
+        comp1 = find_person(c1_id)
+        comp2 = find_person(c2_id)
+
+        if comp1 and comp2:
+            p1_id, p2_id = comp1['person_id'], comp2['person_id']
+            
+            # Get NR for Kinch calculation
+            nr_s = s_ranks[s_ranks['country_rank'] == 1].set_index('event_id')['best']
+            nr_a = a_ranks[a_ranks['country_rank'] == 1].set_index('event_id')['best']
+
+            for ev_id, ev_name in EVENTS.items():
+                # Get Rankings
+                r1_s = s_ranks[(s_ranks['person_id'] == p1_id) & (s_ranks['event_id'] == ev_id)]
+                r2_s = s_ranks[(s_ranks['person_id'] == p2_id) & (s_ranks['event_id'] == ev_id)]
+                r1_a = a_ranks[(a_ranks['person_id'] == p1_id) & (a_ranks['event_id'] == ev_id)]
+                r2_a = a_ranks[(a_ranks['person_id'] == p2_id) & (a_ranks['event_id'] == ev_id)]
+
+                v1_s = r1_s['best'].iloc[0] if not r1_s.empty else 0
+                v2_s = r2_s['best'].iloc[0] if not r2_s.empty else 0
+                v1_a = r1_a['best'].iloc[0] if not r1_a.empty else 0
+                v2_a = r2_a['best'].iloc[0] if not r2_a.empty else 0
+
+                # Kinch Logic
+                def get_kinch(ev, val_s, val_a):
+                    if ev == '333mbf':
+                        return decode_mbld_vectorized(pd.Series([val_s])).iloc[0] / decode_mbld_vectorized(pd.Series([nr_s.get(ev, 0)])).iloc[0] * 100 if val_s > 0 else 0
+                    if ev in ['333bf', '444bf', '555bf', '333fm']:
+                        score = 0
+                        if val_s > 0: score = max(score, (nr_s.get(ev, 0) / val_s * 100))
+                        if val_a > 0: score = max(score, (nr_a.get(ev, 0) / val_a * 100))
+                        return score
+                    return (nr_a.get(ev, 0) / val_a * 100) if val_a > 0 else 0
+
+                k1 = round(get_kinch(ev_id, v1_s, v1_a), 2)
+                k2 = round(get_kinch(ev_id, v2_s, v2_a), 2)
+                kinch_scores['c1'][ev_name] = k1
+                kinch_scores['c2'][ev_name] = k2
+
+                # Comparison Logic (lower is better, except MBLD)
+                def compare(val1, val2, is_mbld=False):
+                    if val1 <= 0: return 'c2' if val2 > 0 else None
+                    if val2 <= 0: return 'c1'
+                    if is_mbld: return 'c1' if val1 < val2 else 'c2' # WCA MBLD storage: lower is better
+                    return 'c1' if val1 < val2 else 'c2' if val2 < val1 else None
+
+                win_s = compare(v1_s, v2_s, ev_id == '333mbf')
+                win_a = compare(v1_a, v2_a)
+                if win_s == 'c1': summary['c1_wins'] += 1
+                elif win_s == 'c2': summary['c2_wins'] += 1
+                if win_a == 'c1': summary['c1_wins'] += 1
+                elif win_a == 'c2': summary['c2_wins'] += 1
+
+                battle_data.append({
+                    'event': ev_name,
+                    'c1_s': format_wca_time(v1_s, ev_id), 'c2_s': format_wca_time(v2_s, ev_id),
+                    'c1_a': format_wca_time(v1_a, ev_id), 'c2_a': format_wca_time(v2_a, ev_id),
+                    'win_s': win_s, 'win_a': win_a,
+                    'rank1_s': int(r1_s['country_rank'].iloc[0]) if not r1_s.empty else None,
+                    'rank2_s': int(r2_s['country_rank'].iloc[0]) if not r2_s.empty else None
+                })
+            
+            summary['c1_total_kinch'] = round(sum(kinch_scores['c1'].values()) / len(EVENTS), 2)
+            summary['c2_total_kinch'] = round(sum(kinch_scores['c2'].values()) / len(EVENTS), 2)
+
+    return render_template('battle.html', comp1=comp1, comp2=comp2, battle_data=battle_data, 
+                           kinch=kinch_scores, summary=summary, updated=last_update_date)
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -144,66 +226,36 @@ def index():
     if rank_type == 'streak':
         if not ph_all_results.empty:
             event_id = selected_events[0]
-            # Filter for Finals/Combined rounds only
             df_ev = ph_all_results[(ph_all_results['event_id'] == event_id) & 
                                    (ph_all_results['round_type_id'].isin(['f','c']))].sort_values(['person_id', 'date'])
-            
             streaks = []
             for pid, group in df_ev.groupby('person_id'):
                 max_s, curr_s = 0, 0
-                # Temp variables for current running streak
                 ts_comp, ts_val, te_comp, te_val = "", "", "", ""
-                # Final variables for the longest recorded streak
                 fs_comp, fs_val, fe_comp, fe_val = "", "", "", ""
-                
                 for _, row in group.iterrows():
-                    # Determine the winning result (Average if exists, else Best)
                     res_value = row['average'] if row['average'] > 0 else row['best']
-                    
-                    # VALID WIN CHECK: Must be 1st place AND not a DNF/DNS (res_value > 0)
                     if row['pos'] == 1 and res_value > 0:
                         val_str = format_wca_time(res_value, event_id)
-                        if curr_s == 0: 
-                            ts_comp, ts_val = row['name'], val_str
+                        if curr_s == 0: ts_comp, ts_val = row['name'], val_str
                         curr_s += 1
                         te_comp, te_val = row['name'], val_str
                     else:
-                        # Streak broken (either by a loss or a DNF win)
                         if curr_s >= max_s and curr_s > 0:
                             max_s, fs_comp, fs_val, fe_comp, fe_val = curr_s, ts_comp, ts_val, te_comp, te_val
                         curr_s = 0
-                
-                # Catch the longest streak if it ended on the most recent comp
                 if curr_s >= max_s and curr_s > 0:
                     max_s, fs_comp, fs_val, fe_comp, fe_val = curr_s, ts_comp, ts_val, te_comp, te_val
-                
                 if max_s > 0:
-                    # Logic for the "Active" flame: Last comp must be a valid win AND part of the max streak
                     last_row = group.iloc[-1]
                     last_res = last_row['average'] if last_row['average'] > 0 else last_row['best']
                     is_active = (last_row['pos'] == 1 and last_res > 0 and curr_s == max_s)
-                    
-                    streaks.append({
-                        'person_id': pid, 
-                        'total': max_s, 
-                        'streak_start': fs_comp, 
-                        'streak_end': fe_comp, 
-                        'is_active': is_active
-                    })
-            
+                    streaks.append({'person_id': pid, 'total': max_s, 'streak_start': fs_comp, 'streak_end': fe_comp, 'is_active': is_active})
             if streaks:
-                # Merge with names and sort by total wins
                 res = pd.DataFrame(streaks).merge(ph_names, on='person_id').sort_values(['total', 'person_id'], ascending=[False, True])
                 for _, r in res.iterrows():
-                    leaderboard.append({
-                        'wca_id': r['person_id'], 
-                        'name': r['person_name'], 
-                        'total': int(r['total']), 
-                        'streak_start': r['streak_start'], 
-                        'streak_end': r['streak_end'], 
-                        'is_active': r['is_active'], 
-                        'ranks': {event_id: int(r['total'])}
-                    })
+                    leaderboard.append({'wca_id': r['person_id'], 'name': r['person_name'], 'total': int(r['total']), 'is_active': r['is_active'], 'ranks': {event_id: int(r['total'])}})
+
     elif rank_type == 'podium':
         pods = ph_podiums_raw[ph_podiums_raw['event_id'].isin(selected_events)]
         if not pods.empty:
@@ -215,11 +267,7 @@ def index():
             for _, row in res.iterrows():
                 person_pods = pods[pods['person_id'] == row['person_id']]
                 ev_data = person_pods.groupby('event_id').size().to_dict()
-                leaderboard.append({
-                    'wca_id': row['person_id'], 'name': row['person_name'], 'total': int(row['total']),
-                    'gold': int(row[1]), 'silver': int(row[2]), 'bronze': int(row[3]),
-                    'ranks': {ev: int(ev_data.get(ev, 0)) for ev in selected_events}
-                })
+                leaderboard.append({'wca_id': row['person_id'], 'name': row['person_name'], 'total': int(row['total']), 'gold': int(row[1]), 'silver': int(row[2]), 'bronze': int(row[3]), 'ranks': {ev: int(ev_data.get(ev, 0)) for ev in selected_events}})
 
     elif rank_type == 'level':
         level_matrix = pd.DataFrame(0.0, index=ph_names['person_id'].values, columns=selected_events)
@@ -277,6 +325,8 @@ def index():
     total_count = len(leaderboard)
     total_pages = math.ceil(total_count / per_page) if total_count > 0 else 1
     return render_template('index.html', events=EVENTS, leaderboard=leaderboard[(page-1)*per_page:page*per_page], selected=selected_events, type=rank_type, updated=last_update_date, page=page, total_pages=total_pages)
+
 ph_names, s_ranks, a_ranks, last_update_date, ph_podiums_raw, ph_all_results = load_and_cache()
+
 if __name__ == '__main__':
     app.run(port=5000, debug=True)
