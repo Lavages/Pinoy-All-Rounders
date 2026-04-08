@@ -244,7 +244,8 @@
         <a href="/" class="nav-brand">🇵🇭 <span>PH RANKINGS</span></a>
         <div class="nav-links">
             <a href="/" class="nav-link">Leaderboard</a>
-            <a href="/battle" class="nav-link active">Competitor Battle</a>
+            <a href="/battle" class="nav-link">Competitor Battle</a>
+            <a href="/best-of-ph" class="nav-link" style="color:var(--ph-blue)">Best of PH</a>
         </div>
     </nav>
 
@@ -308,9 +309,9 @@
                 </tbody>
             </table>
             <div class="tally-footer">
-                <span class="tally-blue">{{ summary.c1_wins }}勝</span>
-                <span style="margin: 0 20px; color: #cbd5e1;">0分</span>
-                <span class="tally-red">{{ summary.c2_wins }}勝</span>
+                <span class="tally-blue">{{ summary.c1_wins }}wins</span>
+                <span style="margin: 0 20px; color: #cbd5e1;">0draw</span>
+                <span class="tally-red">{{ summary.c2_wins }}wins</span>
             </div>
         </div>
         {% endif %}

@@ -16,24 +16,24 @@ EVENTS = {
     '333mbf': 'MBLD'
 }
 
-def format_wca_time(value, event_id):
+def format_wca_time(value, event_id, is_avg=False):
     """
-    Formats WCA integers into readable strings.
-    Handles standard times, FMC (moves), and MBLD (solved/attempted time).
+    Formats WCA integers into readable strings based on event type.
+    - Normal: M:SS.hh or SS.hh
+    - FMC: Single as Int, Average as Decimal (xx.xx)
+    - MBLD: Solved/Attempted M:SS
     """
     if value <= 0 or pd.isna(value): 
         return "DNF" if value == -1 else "-"
     
     # 1. FMC (Fewest Moves)
     if event_id == '333fm': 
-        return str(int(value))
+        return f"{value/100:.2f}" if is_avg else str(int(value))
     
-    # 2. Multi-Blind (333mbf) - New Format: 0DDTTTTTMM
+    # 2. Multi-Blind (333mbf) -> Solved/Attempted M:SS
     if event_id == '333mbf':
         s = str(int(value)).zfill(10)
-        
-        # Parse based on WCA New Multi-Blind rules:
-        # difference = 99 - DD
+        # 0DDTTTTTMM -> DD: Difference, TTTTT: Time in Sec, MM: Missed
         dd = int(s[1:3])
         time_sec = int(s[3:8])
         mm = int(s[8:10])
@@ -42,7 +42,6 @@ def format_wca_time(value, event_id):
         solved = difference + mm
         attempted = solved + mm
         
-        # Handle "Unknown Time" edge case
         if time_sec == 99999:
             return f"{solved}/{attempted} ?:??"
             
@@ -50,18 +49,20 @@ def format_wca_time(value, event_id):
         seconds = time_sec % 60
         return f"{solved}/{attempted} {minutes}:{str(seconds).zfill(2)}"
     
-    # 3. Standard Time Formatting (Sub-minute, Minutes, and Hours)
+    # 3. Standard Time Formatting (Centiseconds to Clock)
     val = int(value)
     cs = val % 100
-    s = (val // 100) % 60
-    m = (val // 6000) % 60
-    h = (val // 360000)
+    total_sec = val // 100
+    s = total_sec % 60
+    m = (total_sec // 60) % 60
+    h = total_sec // 3600
 
     if h > 0:
         return f"{h}:{str(m).zfill(2)}:{str(s).zfill(2)}.{str(cs).zfill(2)}"
     elif m > 0:
         return f"{m}:{str(s).zfill(2)}.{str(cs).zfill(2)}"
     else:
+        # Handles 0.69 case
         return f"{s}.{str(cs).zfill(2)}"
 
 def decode_mbld_vectorized(series):
@@ -84,6 +85,14 @@ def decode_mbld_vectorized(series):
     return scores
 
 def load_and_cache():
+    # Initialize empty defaults to prevent "UnboundLocalError"
+    ph_names = pd.DataFrame()
+    ph_s_ranks = pd.DataFrame()
+    ph_a_ranks = pd.DataFrame()
+    ph_podiums = pd.DataFrame()
+    ph_all_results = pd.DataFrame()
+    export_date = "Unknown"
+
     if os.path.exists(CACHE_FILE) and os.path.getsize(CACHE_FILE) > 0:
         try:
             with open(CACHE_FILE, 'rb') as f:
@@ -91,41 +100,68 @@ def load_and_cache():
                 df_all = pd.DataFrame(data.get('all_results', []))
                 if not df_all.empty and 'date' in df_all.columns:
                     df_all['date'] = pd.to_datetime(df_all['date'])
-                return (pd.DataFrame(data['names']), pd.DataFrame(data['single']), 
-                        pd.DataFrame(data['average']), data.get('last_update', 'Unknown'), 
-                        pd.DataFrame(data.get('podiums', [])), df_all)
+                
+                return (pd.DataFrame(data['names']), 
+                        pd.DataFrame(data['single']), 
+                        pd.DataFrame(data['average']), 
+                        data.get('last_update', 'Unknown'), 
+                        pd.DataFrame(data.get('podiums', [])), 
+                        df_all)
         except Exception as e:
             print(f"Cache read error: {e}")
 
     try:
         required_files = ["WCA_export_results.tsv", "WCA_export_ranks_single.tsv", 
                           "WCA_export_ranks_average.tsv", "WCA_export_competitions.tsv"]
+        
         for f in required_files:
-            if not os.path.exists(f): return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), "Error", pd.DataFrame(), pd.DataFrame()
+            if not os.path.exists(f):
+                return ph_names, ph_s_ranks, ph_a_ranks, "Error: Missing Files", ph_podiums, ph_all_results
 
         export_date = datetime.fromtimestamp(os.path.getmtime("WCA_export_results.tsv")).strftime('%b-%d, %Y')
+        
+        # Load Results
         res_df = pd.read_csv("WCA_export_results.tsv", sep="\t", usecols=['person_id', 'person_name', 'person_country_id', 'pos', 'round_type_id', 'event_id', 'best', 'average', 'competition_id'], low_memory=False)
         comps = pd.read_csv("WCA_export_competitions.tsv", sep="\t", usecols=['id', 'year', 'month', 'day', 'name'])
         comps['date'] = pd.to_datetime(comps[['year', 'month', 'day']])
-        ph_res_all = res_df[res_df['person_country_id'] == 'Philippines'].merge(comps[['id', 'date', 'name']], left_on='competition_id', right_on='id')
-        ph_names = ph_res_all.drop_duplicates('person_id')[['person_id', 'person_name']]
+        
+        # Filter for Philippines
+        ph_all_results = res_df[res_df['person_country_id'] == 'Philippines'].merge(comps[['id', 'date', 'name']], left_on='competition_id', right_on='id')
+        ph_names = ph_all_results.drop_duplicates('person_id')[['person_id', 'person_name']]
         ph_ids = ph_names['person_id'].unique()
-        s_ranks = pd.read_csv("WCA_export_ranks_single.tsv", sep="\t", usecols=['person_id', 'event_id', 'best', 'country_rank'], low_memory=False)
-        a_ranks = pd.read_csv("WCA_export_ranks_average.tsv", sep="\t", usecols=['person_id', 'event_id', 'best', 'country_rank'], low_memory=False)
-        ph_s_ranks = s_ranks[s_ranks['person_id'].isin(ph_ids)]
-        ph_a_ranks = a_ranks[a_ranks['person_id'].isin(ph_ids)]
-        ph_res_all_serializable = ph_res_all.copy()
-        ph_res_all_serializable['date'] = ph_res_all_serializable['date'].dt.strftime('%Y-%m-%d')
+        
+        # Load Ranks
+        s_ranks_raw = pd.read_csv("WCA_export_ranks_single.tsv", sep="\t", usecols=['person_id', 'event_id', 'best', 'country_rank'], low_memory=False)
+        a_ranks_raw = pd.read_csv("WCA_export_ranks_average.tsv", sep="\t", usecols=['person_id', 'event_id', 'best', 'country_rank'], low_memory=False)
+        ph_s_ranks = s_ranks_raw[s_ranks_raw['person_id'].isin(ph_ids)]
+        ph_a_ranks = a_ranks_raw[a_ranks_raw['person_id'].isin(ph_ids)]
+        
+        # Prepare for cache
+        ph_res_serializable = ph_all_results.copy()
+        ph_res_serializable['date'] = ph_res_serializable['date'].dt.strftime('%Y-%m-%d')
+        
+        ph_podiums = ph_all_results[(ph_all_results['pos'] <= 3) & (ph_all_results['round_type_id'].isin(['f', 'c']))][['person_id', 'event_id', 'pos']]
+
         cache_data = {
-            'names': ph_names.to_dict('records'), 'single': ph_s_ranks.to_dict('records'),
-            'average': ph_a_ranks.to_dict('records'), 'podiums': ph_res_all[(ph_res_all['pos'] <= 3) & (ph_res_all['round_type_id'].isin(['f', 'c']))][['person_id', 'event_id', 'pos']].to_dict('records'),
-            'all_results': ph_res_all_serializable[['person_id', 'event_id', 'pos', 'round_type_id', 'date', 'name', 'best', 'average']].to_dict('records'),
+            'names': ph_names.to_dict('records'), 
+            'single': ph_s_ranks.to_dict('records'),
+            'average': ph_a_ranks.to_dict('records'), 
+            'podiums': ph_podiums.to_dict('records'),
+            'all_results': ph_res_serializable[['person_id', 'event_id', 'pos', 'round_type_id', 'date', 'name', 'best', 'average']].to_dict('records'),
             'last_update': export_date
         }
-        with open(CACHE_FILE, 'wb') as f: f.write(msgpack.packb(cache_data))
-        return ph_names, ph_s_ranks, ph_a_ranks, export_date, pd.DataFrame(cache_data['podiums']), ph_res_all
+        
+        with open(CACHE_FILE, 'wb') as f: 
+            f.write(msgpack.packb(cache_data))
+            
+        return ph_names, ph_s_ranks, ph_a_ranks, export_date, ph_podiums, ph_all_results
+
     except Exception as e:
-        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), "Error", pd.DataFrame(), pd.DataFrame()
+        print(f"Data processing error: {e}")
+        return ph_names, ph_s_ranks, ph_a_ranks, "Error", ph_podiums, ph_all_results
+
+# Global variables assignment at the bottom of the script
+ph_names, s_ranks, a_ranks, last_update_date, ph_podiums_raw, ph_all_results = load_and_cache()
 
 @app.route('/battle', methods=['GET', 'POST'])
 def battle():
@@ -209,6 +245,104 @@ def battle():
 
     return render_template('battle.html', comp1=comp1, comp2=comp2, battle_data=battle_data, 
                            kinch=kinch_scores, summary=summary, updated=last_update_date)
+
+@app.route('/best-of-ph', methods=['GET'])
+def best_of_ph():
+    query = request.args.get('query', '')
+    results = []
+    person = None
+
+    if query:
+        match = ph_names[(ph_names['person_id'] == query) | 
+                         (ph_names['person_name'].str.contains(query, case=False, na=False))]
+        
+        if not match.empty:
+            person = match.iloc[0].to_dict()
+            p_id, p_name = person['person_id'], person['person_name']
+            
+            # --- PREPARE DATA ---
+            p_singles = s_ranks[s_ranks['person_id'] == p_id]
+            p_averages = a_ranks[a_ranks['person_id'] == p_id]
+            p_results = ph_all_results[ph_all_results['person_id'] == p_id].sort_values('date', ascending=False)
+            
+            first_name = p_name.split()[0]
+            debut_year = p_id[:4]
+            fn_ids = ph_names[ph_names['person_name'].str.startswith(first_name)]['person_id']
+            year_ids = ph_names[ph_names['person_id'].str.startswith(debut_year)]['person_id']
+
+            # --- PROCESS BOTH SINGLES & AVERAGES ---
+            datasets = [
+                (p_singles, s_ranks, "Single", False),
+                (p_averages, a_ranks, "Average", True)
+            ]
+
+            for p_data, global_ranks, label, is_avg in datasets:
+                for _, row in p_data.iterrows():
+                    eid = row['event_id']
+                    event_name = EVENTS.get(eid, eid)
+                    formatted_time = format_wca_time(row['best'], eid, is_avg)
+                    
+                    # 1. National Best Check
+                    if row['country_rank'] == 1:
+                        results.append({
+                            "cat": "National Best", 
+                            "text": f"Current PH National Record: {event_name} {label} ({formatted_time})"
+                        })
+
+                    # 2. Name-Based Check (Fastest among others with same first name)
+                    if len(fn_ids) > 1:
+                        best_in_name = global_ranks[global_ranks['person_id'].isin(fn_ids) & (global_ranks['event_id'] == eid)]['best'].min()
+                        if row['best'] == best_in_name:
+                            results.append({
+                                "cat": "Name", 
+                                "text": f"Fastest {event_name} {label} ({formatted_time}) among Filipinos named '{first_name}'"
+                            })
+
+                    # 3. WCA ID / Debut Year Check
+                    best_in_year = global_ranks[global_ranks['person_id'].isin(year_ids) & (global_ranks['event_id'] == eid)]['best'].min()
+                    if row['best'] == best_in_year:
+                        results.append({
+                            "cat": "WCA ID", 
+                            "text": f"Fastest {event_name} {label} ({formatted_time}) in the 'Class of {debut_year}'"
+                        })
+
+            # --- CATEGORY: TIME (Decimal Matching) ---
+            for _, row in p_singles.iterrows():
+                eid = row['event_id']
+                if eid in ['333fm', '333mbf']: continue 
+                
+                val_str = f"{row['best']/100:.2f}"
+                decimal = val_str.split('.')[-1]
+                same_decimal_best = s_ranks[(s_ranks['event_id'] == eid) & 
+                                            ((s_ranks['best']/100).astype(str).str.endswith(decimal))]['best'].min()
+                
+                if row['best'] == same_decimal_best:
+                    results.append({
+                        "cat": "Time", 
+                        "text": f"Fastest {EVENTS.get(eid)} among those with a '.{decimal}' PB"
+                    })
+
+            # --- CATEGORY: UNIQUE & COMPETITION ---
+            if len(ph_names[ph_names['person_name'] == p_name]) == 1:
+                results.append({"cat": "Unique", "text": f"The only '{p_name}' in Philippine Speedcubing"})
+
+            if not p_results.empty:
+                comp_col = next((c for c in ['competition_id', 'competitionId', 'id'] if c in p_results.columns), None)
+                if comp_col:
+                    last_comp_id = p_results.iloc[0][comp_col]
+                    last_comp_name = p_results.iloc[0]['name']
+                    comp_res = ph_all_results[ph_all_results[comp_col] == last_comp_id]
+                    comp_bests = comp_res.groupby('event_id')['best'].min()
+                    
+                    for _, row in p_results[p_results[comp_col] == last_comp_id].iterrows():
+                        if row['best'] == comp_bests.get(row['event_id']):
+                            f_time = format_wca_time(row['best'], row['event_id'], False)
+                            results.append({
+                                "cat": "Competition", 
+                                "text": f"Fastest {EVENTS.get(row['event_id'])} ({f_time}) at {last_comp_name}"
+                            })
+
+    return render_template('best_of_ph.html', person=person, results=results)
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -327,6 +461,7 @@ def index():
     return render_template('index.html', events=EVENTS, leaderboard=leaderboard[(page-1)*per_page:page*per_page], selected=selected_events, type=rank_type, updated=last_update_date, page=page, total_pages=total_pages)
 
 ph_names, s_ranks, a_ranks, last_update_date, ph_podiums_raw, ph_all_results = load_and_cache()
+app = app
 
 if __name__ == '__main__':
-    app.run(port=5000, debug=True)
+    app.run(debug=True)
