@@ -342,7 +342,7 @@ def best_of_ph():
                     group_count = len(decimal_group)
                     results.append({
                         "cat": "Time", 
-                        "text": f"Fastest {EVENTS.get(eid)} among {group_count} Filipinos with a '.{decimal}' PB"
+                        "text": f"Fastest {EVENTS.get(eid)} among {group_count} Filipinos with a '.{decimal}' PR"
                     })
 
             # --- 6. UNIQUE & COMPETITION TITLES ---
