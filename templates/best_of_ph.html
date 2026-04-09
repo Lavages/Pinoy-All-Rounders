@@ -17,7 +17,7 @@
             --text-main: #1e293b;
             --text-muted: #64748b;
 
-            /* Category Colors */
+            /* Badge Colors */
             --cat-national: #ce1126;
             /* Red */
             --cat-name: #0038a8;
@@ -26,6 +26,14 @@
             /* Green */
             --cat-comp: #7c3aed;
             /* Purple */
+            --cat-time: #0ea5e9;
+            /* Sky Blue */
+            --cat-growth: #f59e0b;
+            /* Orange */
+            --cat-overall: #111827;
+            /* Black/Dark */
+            --cat-unique: #ec4899;
+            /* Pink */
         }
 
         body {
@@ -51,22 +59,10 @@
             margin-right: 40px;
         }
 
-        .nav-link {
-            text-decoration: none;
-            color: var(--text-muted);
-            font-weight: 600;
-            padding: 8px 16px;
-        }
-
         .container {
             max-width: 850px;
             margin: 60px auto;
             padding: 0 20px;
-        }
-
-        .header-section {
-            text-align: center;
-            margin-bottom: 40px;
         }
 
         .search-box {
@@ -75,17 +71,15 @@
             border-radius: 24px;
             box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
             display: flex;
-            justify-content: center;
             gap: 10px;
+            margin-bottom: 30px;
         }
 
         input[type="text"] {
             flex: 1;
-            max-width: 500px;
             padding: 15px 25px;
             border-radius: 12px;
             border: 2px solid #e2e8f0;
-            font-size: 1rem;
             font-weight: 600;
             outline: none;
         }
@@ -108,15 +102,11 @@
             border-top: 8px solid var(--ph-yellow);
         }
 
-        .achievement-list {
-            margin-top: 30px;
-        }
-
         .achievement-item {
             display: flex;
             align-items: center;
-            gap: 20px;
-            padding: 20px 0;
+            gap: 15px;
+            padding: 18px 0;
             border-bottom: 1px solid #f1f5f9;
         }
 
@@ -124,18 +114,18 @@
             border-bottom: none;
         }
 
-        /* Dynamic Badge Logic */
         .badge {
-            min-width: 100px;
+            min-width: 90px;
             text-align: center;
-            padding: 6px 12px;
-            border-radius: 8px;
-            font-size: 0.75rem;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 0.7rem;
             font-weight: 800;
             text-transform: uppercase;
             color: white;
         }
 
+        /* Badge Styles */
         .badge.national-best {
             background: var(--cat-national);
         }
@@ -152,39 +142,48 @@
             background: var(--cat-comp);
         }
 
-        .star {
-            color: var(--ph-yellow);
-            font-size: 1.2rem;
+        .badge.time {
+            background: var(--cat-time);
         }
 
-        .no-results {
-            text-align: center;
-            padding: 40px;
-            color: var(--text-muted);
+        .badge.growth {
+            background: var(--cat-growth);
+        }
+
+        .badge.overall {
+            background: var(--cat-overall);
+        }
+
+        .badge.unique {
+            background: var(--cat-unique);
+        }
+
+        .count-summary {
+            display: inline-block;
+            background: #fef9c3;
+            color: #854d0e;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            margin-top: 10px;
+        }
+
+        .star {
+            color: var(--ph-yellow);
+            font-size: 1.1rem;
         }
     </style>
 </head>
 
 <body>
     <nav class="navbar">
-        <a href="/" class="nav-brand">🇵🇭 <span>PH RANKINGS</span></a>
-        <div class="nav-links">
-            <a href="/" class="nav-link">Leaderboard</a>
-            <a href="/battle" class="nav-link">Competitor Battle</a>
-            <a href="/best-of-ph" class="nav-link" style="color:var(--ph-blue)">Best of PH</a>
-        </div>
+        <a href="/" class="nav-brand">🇵🇭 PH RANKINGS</a>
     </nav>
 
     <div class="container">
-        <div class="header-section">
-            <div style="font-size: 64px;">🏆</div>
-            <h1 style="font-weight: 800; color: var(--ph-blue); margin-bottom: 8px;">Find Your "PH Number One"</h1>
-            <p style="color: var(--text-muted);">Finding the specific stats that put you at the top of the Philippines.
-            </p>
-        </div>
-
         <form action="/best-of-ph" method="GET" class="search-box">
-            <input type="text" name="query" placeholder="Enter Name or WCA ID..."
+            <input type="text" name="query" placeholder="Name or WCA ID..."
                 value="{{ person.person_name if person else '' }}">
             <button type="submit" class="btn-search">Search</button>
         </form>
@@ -193,31 +192,24 @@
         <div class="result-card">
             <div style="border-bottom: 2px solid #f1f5f9; padding-bottom: 20px;">
                 <h2 style="margin: 0; font-size: 2rem;">{{ person.person_name }}</h2>
-                <code style="color: var(--text-muted); font-size: 1.1rem;">{{ person.person_id }}</code>
+                <code>{{ person.person_id }}</code>
+                <br>
+                <div class="count-summary">
+                    ✨ Found {{ results|length }} Unique PH Titles
+                </div>
             </div>
 
             <div class="achievement-list">
-                {% if results %}
                 {% for award in results %}
                 <div class="achievement-item">
                     <span class="badge {{ award.cat.lower().replace(' ', '-') }}">
                         {{ award.cat }}
                     </span>
                     <span class="star">★</span>
-                    <span style="font-weight: 600; font-size: 1.05rem;">{{ award.text }}</span>
+                    <span style="font-weight: 600;">{{ award.text }}</span>
                 </div>
                 {% endfor %}
-                {% else %}
-                <div class="no-results">
-                    <p>Keep training! We haven't found a unique "PH #1" stat for this profile yet.</p>
-                    <p style="font-size: 0.9rem;">Try searching for top-tier competitors to see how this works.</p>
-                </div>
-                {% endif %}
             </div>
-        </div>
-        {% elif request.args.get('query') %}
-        <div style="text-align: center; margin-top: 40px; color: var(--ph-red);">
-            <p><strong>No competitor found.</strong> Please check the spelling or WCA ID.</p>
         </div>
         {% endif %}
     </div>

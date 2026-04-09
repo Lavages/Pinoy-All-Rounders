@@ -245,7 +245,6 @@ def battle():
 
     return render_template('battle.html', comp1=comp1, comp2=comp2, battle_data=battle_data, 
                            kinch=kinch_scores, summary=summary, updated=last_update_date)
-
 @app.route('/best-of-ph', methods=['GET'])
 def best_of_ph():
     query = request.args.get('query', '')
@@ -253,6 +252,7 @@ def best_of_ph():
     person = None
 
     if query:
+        # Search for the person by ID or Name
         match = ph_names[(ph_names['person_id'] == query) | 
                          (ph_names['person_name'].str.contains(query, case=False, na=False))]
         
@@ -260,87 +260,108 @@ def best_of_ph():
             person = match.iloc[0].to_dict()
             p_id, p_name = person['person_id'], person['person_name']
             
-            # --- PREPARE DATA ---
+            # --- 1. DATA PREPARATION ---
             p_singles = s_ranks[s_ranks['person_id'] == p_id]
             p_averages = a_ranks[a_ranks['person_id'] == p_id]
-            p_results = ph_all_results[ph_all_results['person_id'] == p_id].sort_values('date', ascending=False)
+            p_history = ph_all_results[ph_all_results['person_id'] == p_id].sort_values('date')
+            
+            # Column safety check for merged data
+            comp_col = 'competition_id' if 'competition_id' in p_history.columns else 'id'
             
             first_name = p_name.split()[0]
             debut_year = p_id[:4]
+            
+            # Peer ID filtering
             fn_ids = ph_names[ph_names['person_name'].str.startswith(first_name)]['person_id']
             year_ids = ph_names[ph_names['person_id'].str.startswith(debut_year)]['person_id']
 
-            # --- PROCESS BOTH SINGLES & AVERAGES ---
-            datasets = [
-                (p_singles, s_ranks, "Single", False),
-                (p_averages, a_ranks, "Average", True)
-            ]
-
+            # --- 2. CORE RECORDS (With Population Counts) ---
+            datasets = [(p_singles, s_ranks, "Single", False), (p_averages, a_ranks, "Average", True)]
+            
             for p_data, global_ranks, label, is_avg in datasets:
                 for _, row in p_data.iterrows():
                     eid = row['event_id']
-                    event_name = EVENTS.get(eid, eid)
-                    formatted_time = format_wca_time(row['best'], eid, is_avg)
+                    ev_name = EVENTS.get(eid, eid)
+                    f_time = format_wca_time(row['best'], eid, is_avg)
                     
-                    # 1. National Best Check
+                    # National Record
                     if row['country_rank'] == 1:
-                        results.append({
-                            "cat": "National Best", 
-                            "text": f"Current PH National Record: {event_name} {label} ({formatted_time})"
-                        })
+                        results.append({"cat": "National Best", "text": f"Current PH National Record: {ev_name} {label} ({f_time})"})
 
-                    # 2. Name-Based Check (Fastest among others with same first name)
-                    if len(fn_ids) > 1:
-                        best_in_name = global_ranks[global_ranks['person_id'].isin(fn_ids) & (global_ranks['event_id'] == eid)]['best'].min()
-                        if row['best'] == best_in_name:
+                    # Name-Based Peer Group
+                    name_group = global_ranks[global_ranks['person_id'].isin(fn_ids) & (global_ranks['event_id'] == eid)]
+                    if not name_group.empty and row['best'] == name_group['best'].min():
+                        group_count = len(name_group)
+                        if group_count > 1:
                             results.append({
                                 "cat": "Name", 
-                                "text": f"Fastest {event_name} {label} ({formatted_time}) among Filipinos named '{first_name}'"
+                                "text": f"Fastest {ev_name} {label} ({f_time}) among {group_count} Filipinos named '{first_name}'"
                             })
 
-                    # 3. WCA ID / Debut Year Check
-                    best_in_year = global_ranks[global_ranks['person_id'].isin(year_ids) & (global_ranks['event_id'] == eid)]['best'].min()
-                    if row['best'] == best_in_year:
+                    # Debut Year "Class of" Group
+                    year_group = global_ranks[global_ranks['person_id'].isin(year_ids) & (global_ranks['event_id'] == eid)]
+                    if not year_group.empty and row['best'] == year_group['best'].min():
+                        group_count = len(year_group)
                         results.append({
                             "cat": "WCA ID", 
-                            "text": f"Fastest {event_name} {label} ({formatted_time}) in the 'Class of {debut_year}'"
+                            "text": f"Rank #1 in {ev_name} {label} ({f_time}) out of {group_count} in the PH 'Class of {debut_year}'"
                         })
 
-            # --- CATEGORY: TIME (Decimal Matching) ---
+            # --- 3. SPECIALIST: SUM OF RANKS ---
+            bld_events = ['333bf', '444bf', '555bf', '333mbf']
+            if any(ev in p_singles['event_id'].values for ev in bld_events):
+                bld_ranks = s_ranks[s_ranks['event_id'].isin(bld_events)]
+                sor_totals = bld_ranks.groupby('person_id')['country_rank'].sum()
+                if not sor_totals.empty and sor_totals.idxmin() == p_id:
+                    results.append({"cat": "Overall", "text": "PH #1 Blindfolded Specialist (Best Sum of Ranks in BLD events)"})
+
+            # --- 4. GROWTH RATE ---
+            for eid in p_history['event_id'].unique():
+                ev_history = p_history[p_history['event_id'] == eid]
+                if len(ev_history) >= 3:
+                    first_res = ev_history.iloc[0]['best']
+                    best_res = ev_history['best'].min()
+                    if first_res > best_res and best_res > 0:
+                        improvement = ((first_res - best_res) / first_res) * 100
+                        if improvement > 40:
+                            results.append({
+                                "cat": "Growth", 
+                                "text": f"{improvement:.1f}% Improvement in {EVENTS.get(eid)} ({format_wca_time(first_res, eid)} → {format_wca_time(best_res, eid)})"
+                            })
+
+            # --- 5. TIME MATCHING (With Population Counts) ---
             for _, row in p_singles.iterrows():
                 eid = row['event_id']
                 if eid in ['333fm', '333mbf']: continue 
                 
-                val_str = f"{row['best']/100:.2f}"
-                decimal = val_str.split('.')[-1]
-                same_decimal_best = s_ranks[(s_ranks['event_id'] == eid) & 
-                                            ((s_ranks['best']/100).astype(str).str.endswith(decimal))]['best'].min()
+                decimal = f"{row['best']/100:.2f}".split('.')[-1]
+                decimal_group = s_ranks[(s_ranks['event_id'] == eid) & 
+                                        ((s_ranks['best']/100).astype(str).str.endswith(decimal))]
                 
-                if row['best'] == same_decimal_best:
+                if not decimal_group.empty and row['best'] == decimal_group['best'].min():
+                    group_count = len(decimal_group)
                     results.append({
                         "cat": "Time", 
-                        "text": f"Fastest {EVENTS.get(eid)} among those with a '.{decimal}' PB"
+                        "text": f"Fastest {EVENTS.get(eid)} among {group_count} Filipinos with a '.{decimal}' PB"
                     })
 
-            # --- CATEGORY: UNIQUE & COMPETITION ---
+            # --- 6. UNIQUE & COMPETITION TITLES ---
             if len(ph_names[ph_names['person_name'] == p_name]) == 1:
                 results.append({"cat": "Unique", "text": f"The only '{p_name}' in Philippine Speedcubing"})
 
-            if not p_results.empty:
-                comp_col = next((c for c in ['competition_id', 'competitionId', 'id'] if c in p_results.columns), None)
-                if comp_col:
-                    last_comp_id = p_results.iloc[0][comp_col]
-                    last_comp_name = p_results.iloc[0]['name']
-                    comp_res = ph_all_results[ph_all_results[comp_col] == last_comp_id]
-                    comp_bests = comp_res.groupby('event_id')['best'].min()
-                    
-                    for _, row in p_results[p_results[comp_col] == last_comp_id].iterrows():
-                        if row['best'] == comp_bests.get(row['event_id']):
-                            f_time = format_wca_time(row['best'], row['event_id'], False)
-                            results.append({
-                                "cat": "Competition", 
-                                "text": f"Fastest {EVENTS.get(row['event_id'])} ({f_time}) at {last_comp_name}"
-                            })
+            if not p_history.empty and comp_col in p_history.columns:
+                last_comp_id = p_history.iloc[-1][comp_col]
+                last_comp_name = p_history.iloc[-1]['name']
+                comp_res = ph_all_results[ph_all_results[comp_col] == last_comp_id]
+                comp_bests = comp_res.groupby('event_id')['best'].min()
+                
+                for _, row in p_history[p_history[comp_col] == last_comp_id].iterrows():
+                    if row['best'] == comp_bests.get(row['event_id']):
+                        f_time = format_wca_time(row['best'], row['event_id'], False)
+                        results.append({
+                            "cat": "Competition", 
+                            "text": f"Fastest {EVENTS.get(row['event_id'])} ({f_time}) at {last_comp_name}"
+                        })
 
     return render_template('best_of_ph.html', person=person, results=results)
 
