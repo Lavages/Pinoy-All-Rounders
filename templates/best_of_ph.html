@@ -19,21 +19,13 @@
 
             /* Badge Colors */
             --cat-national: #ce1126;
-            /* Red */
             --cat-name: #0038a8;
-            /* Blue */
             --cat-wca-id: #059669;
-            /* Green */
             --cat-comp: #7c3aed;
-            /* Purple */
             --cat-time: #0ea5e9;
-            /* Sky Blue */
             --cat-growth: #f59e0b;
-            /* Orange */
             --cat-overall: #111827;
-            /* Black/Dark */
             --cat-unique: #ec4899;
-            /* Pink */
         }
 
         body {
@@ -41,88 +33,161 @@
             background: var(--bg-light);
             margin: 0;
             color: var(--text-main);
+            -webkit-font-smoothing: antialiased;
         }
 
         .navbar {
-            height: 70px;
+            height: 64px;
             background: var(--surface);
             display: flex;
             align-items: center;
-            padding: 0 5%;
+            padding: 0 20px;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
 
         .nav-brand {
             font-weight: 800;
             color: var(--ph-blue);
             text-decoration: none;
-            margin-right: 40px;
+            font-size: 1.1rem;
         }
 
         .container {
             max-width: 850px;
-            margin: 60px auto;
-            padding: 0 20px;
+            margin: 20px auto 60px;
+            padding: 0 16px;
         }
 
         .search-box {
             background: var(--surface);
-            padding: 30px;
-            border-radius: 24px;
+            padding: 20px;
+            border-radius: 20px;
             box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
             display: flex;
-            gap: 10px;
-            margin-bottom: 30px;
+            flex-direction: column;
+            /* Stacked by default for mobile */
+            gap: 12px;
+            margin-bottom: 24px;
         }
 
         input[type="text"] {
-            flex: 1;
-            padding: 15px 25px;
+            width: 100%;
+            box-sizing: border-box;
+            padding: 16px 20px;
             border-radius: 12px;
             border: 2px solid #e2e8f0;
+            font-size: 1rem;
             font-weight: 600;
             outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--ph-blue);
         }
 
         .btn-search {
             background: var(--ph-blue);
             color: white;
             border: none;
-            padding: 0 30px;
+            padding: 16px;
             border-radius: 12px;
             font-weight: 700;
             cursor: pointer;
+            font-size: 1rem;
+            transition: opacity 0.2s;
+        }
+
+        .btn-search:active {
+            opacity: 0.8;
         }
 
         .result-card {
             background: var(--surface);
             border-radius: 24px;
-            padding: 40px;
+            padding: 24px;
             box-shadow: 0 15px 35px rgba(0, 0, 0, 0.08);
             border-top: 8px solid var(--ph-yellow);
         }
 
+        .card-header h2 {
+            margin: 0;
+            font-size: 1.5rem;
+            word-break: break-word;
+            /* Prevents long names from breaking layout */
+        }
+
         .achievement-item {
             display: flex;
-            align-items: center;
-            gap: 15px;
-            padding: 18px 0;
+            flex-direction: column;
+            /* Column on mobile */
+            align-items: flex-start;
+            gap: 8px;
+            padding: 20px 0;
             border-bottom: 1px solid #f1f5f9;
         }
 
-        .achievement-item:last-child {
-            border-bottom: none;
+        .item-meta {
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
         .badge {
-            min-width: 90px;
+            display: inline-block;
+            min-width: 85px;
             text-align: center;
-            padding: 6px 10px;
+            padding: 5px 10px;
             border-radius: 6px;
-            font-size: 0.7rem;
+            font-size: 0.65rem;
             font-weight: 800;
             text-transform: uppercase;
             color: white;
+            letter-spacing: 0.5px;
+        }
+
+        .achievement-text {
+            font-weight: 600;
+            font-size: 0.95rem;
+            line-height: 1.4;
+        }
+
+        /* Desktop Adjustments */
+        @media (min-width: 640px) {
+            .container {
+                margin-top: 40px;
+            }
+
+            .search-box {
+                flex-direction: row;
+                padding: 24px;
+            }
+
+            .btn-search {
+                width: auto;
+                padding: 0 32px;
+            }
+
+            .result-card {
+                padding: 40px;
+            }
+
+            .card-header h2 {
+                font-size: 2rem;
+            }
+
+            .achievement-item {
+                flex-direction: row;
+                align-items: center;
+                gap: 15px;
+            }
+
+            .achievement-text {
+                font-size: 1.05rem;
+            }
         }
 
         /* Badge Styles */
@@ -164,49 +229,56 @@
             color: #854d0e;
             padding: 4px 12px;
             border-radius: 20px;
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             font-weight: 700;
-            margin-top: 10px;
+            margin-top: 12px;
         }
 
         .star {
             color: var(--ph-yellow);
-            font-size: 1.1rem;
+            font-size: 1rem;
         }
     </style>
 </head>
 
 <body>
     <nav class="navbar">
-        <a href="/" class="nav-brand">🇵🇭 PH RANKINGS</a>
+        <a href="/" class="nav-brand">🇵🇭 RANKINGS</a>
+        <div class="nav-links">
+            <a href="/" class="nav-link active">Leaderboard</a>
+            <a href="/battle" class="nav-link">Battle</a>
+            <a href="/best-of-ph" class="nav-link">Best</a>
+        </div>
     </nav>
 
     <div class="container">
         <form action="/best-of-ph" method="GET" class="search-box">
             <input type="text" name="query" placeholder="Name or WCA ID..."
-                value="{{ person.person_name if person else '' }}">
+                value="{{ person.person_name if person else '' }}" autocomplete="off">
             <button type="submit" class="btn-search">Search</button>
         </form>
 
         {% if person %}
         <div class="result-card">
-            <div style="border-bottom: 2px solid #f1f5f9; padding-bottom: 20px;">
-                <h2 style="margin: 0; font-size: 2rem;">{{ person.person_name }}</h2>
-                <code>{{ person.person_id }}</code>
+            <div class="card-header" style="border-bottom: 2px solid #f1f5f9; padding-bottom: 20px;">
+                <h2>{{ person.person_name }}</h2>
+                <code style="color: var(--text-muted);">{{ person.person_id }}</code>
                 <br>
                 <div class="count-summary">
-                    ✨ Found {{ results|length }} Unique PH Titles
+                    ✨ {{ results|length }} PH Titles Found
                 </div>
             </div>
 
             <div class="achievement-list">
                 {% for award in results %}
                 <div class="achievement-item">
-                    <span class="badge {{ award.cat.lower().replace(' ', '-') }}">
-                        {{ award.cat }}
-                    </span>
-                    <span class="star">★</span>
-                    <span style="font-weight: 600;">{{ award.text }}</span>
+                    <div class="item-meta">
+                        <span class="badge {{ award.cat.lower().replace(' ', '-') }}">
+                            {{ award.cat }}
+                        </span>
+                        <span class="star">★</span>
+                    </div>
+                    <span class="achievement-text">{{ award.text }}</span>
                 </div>
                 {% endfor %}
             </div>

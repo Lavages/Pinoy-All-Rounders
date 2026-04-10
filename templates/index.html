@@ -17,7 +17,7 @@
             --surface: #ffffff;
             --text-main: #1e293b;
             --text-muted: #64748b;
-            --nav-height: 70px;
+            --nav-height: 64px;
         }
 
         body {
@@ -25,17 +25,18 @@
             background-color: var(--bg-light);
             color: var(--text-main);
             margin: 0;
-            padding: 0;
-            line-height: 1.6;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
         }
 
-        /* UNIFIED NAVBAR */
+        /* NAVBAR */
         .navbar {
             height: var(--nav-height);
             background: var(--surface);
             display: flex;
             align-items: center;
-            padding: 0 5%;
+            justify-content: space-between;
+            padding: 0 16px;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
             position: sticky;
             top: 0;
@@ -44,33 +45,23 @@
 
         .nav-brand {
             font-weight: 800;
-            font-size: 1.2rem;
+            font-size: 1rem;
             color: var(--ph-blue);
-            display: flex;
-            align-items: center;
-            gap: 10px;
             text-decoration: none;
-            margin-right: 40px;
         }
 
         .nav-links {
             display: flex;
-            gap: 8px;
+            gap: 4px;
         }
 
         .nav-link {
             text-decoration: none;
             color: var(--text-muted);
-            font-weight: 600;
-            font-size: 0.9rem;
-            padding: 8px 16px;
-            border-radius: 8px;
-            transition: all 0.2s;
-        }
-
-        .nav-link:hover {
-            color: var(--ph-blue);
-            background: #f8fafc;
+            font-weight: 700;
+            font-size: 0.75rem;
+            padding: 6px 10px;
+            border-radius: 6px;
         }
 
         .nav-link.active {
@@ -80,107 +71,82 @@
 
         .container {
             max-width: 1300px;
-            margin: 30px auto;
-            padding: 0 20px;
+            margin: 16px auto;
+            padding: 0 12px;
         }
 
-        /* HEADER SECTION */
+        /* HERO SECTION */
         .hero-section {
             background: linear-gradient(135deg, var(--ph-blue) 0%, var(--ph-dark-blue) 100%);
-            border-radius: 24px;
-            padding: 60px 40px;
+            border-radius: 20px;
+            padding: 32px 24px;
             color: white;
-            position: relative;
-            overflow: hidden;
-            box-shadow: 0 20px 40px rgba(0, 56, 168, 0.15);
-            margin-bottom: 30px;
-        }
-
-        .hero-section::after {
-            content: "☀";
-            position: absolute;
-            right: -30px;
-            top: -30px;
-            font-size: 300px;
-            opacity: 0.07;
-            transform: rotate(15deg);
+            margin-bottom: 20px;
+            text-align: center;
         }
 
         .hero-content h1 {
             margin: 0;
-            font-size: 2.5rem;
+            font-size: 1.5rem;
             font-weight: 800;
-            letter-spacing: -1px;
         }
 
         .hero-subtitle {
-            opacity: 0.9;
-            font-weight: 500;
-            font-size: 1.1rem;
-            margin-top: 5px;
+            opacity: 0.8;
+            font-size: 0.85rem;
+            margin-top: 4px;
         }
 
         .data-badge {
-            background: rgba(255, 255, 255, 0.15);
-            backdrop-filter: blur(10px);
-            padding: 6px 16px;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 4px 12px;
             border-radius: 100px;
-            font-size: 0.8rem;
+            font-size: 0.7rem;
             font-weight: 700;
+            margin-top: 16px;
             display: inline-block;
-            margin-top: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
         }
 
-        /* SETTINGS CARD */
+        /* FILTERS CARD */
         .card {
             background: var(--surface);
-            border-radius: 20px;
-            padding: 30px;
+            border-radius: 16px;
+            padding: 20px;
             border: 1px solid #e2e8f0;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-            margin-bottom: 30px;
+            margin-bottom: 20px;
         }
 
         .section-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 1px solid #f1f5f9;
+            margin-bottom: 16px;
         }
 
         .section-header h2 {
-            font-size: 1rem;
+            font-size: 0.8rem;
             text-transform: uppercase;
             letter-spacing: 1px;
             color: var(--ph-blue);
-            margin: 0;
         }
 
         .event-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(95px, 1fr));
-            gap: 10px;
-            margin-bottom: 25px;
-        }
-
-        .event-chip input {
-            display: none;
+            grid-template-columns: repeat(3, 1fr);
+            /* 3 columns on mobile */
+            gap: 8px;
+            margin-bottom: 20px;
         }
 
         .event-chip span {
             display: block;
-            padding: 10px;
+            padding: 8px 4px;
             background: #f8fafc;
             border: 1px solid #e2e8f0;
-            border-radius: 12px;
+            border-radius: 8px;
             text-align: center;
-            font-size: 0.8rem;
+            font-size: 0.7rem;
             font-weight: 700;
-            cursor: pointer;
-            transition: all 0.2s;
             color: var(--text-muted);
         }
 
@@ -188,72 +154,67 @@
             background: var(--ph-blue);
             color: white;
             border-color: var(--ph-blue);
-            box-shadow: 0 4px 12px rgba(0, 56, 168, 0.2);
+        }
+
+        .event-chip input {
+            display: none;
         }
 
         .controls {
             display: flex;
-            gap: 15px;
-            flex-wrap: wrap;
+            flex-direction: column;
+            gap: 12px;
         }
 
         select {
-            flex: 1;
-            padding: 14px;
-            border-radius: 12px;
+            padding: 12px;
+            border-radius: 10px;
             border: 1px solid #e2e8f0;
             font-weight: 600;
-            font-family: inherit;
-            min-width: 250px;
             background-color: #f8fafc;
+            font-size: 0.9rem;
         }
 
         .btn-update {
             background: var(--ph-yellow);
             color: var(--ph-blue);
             border: none;
-            padding: 0 40px;
-            border-radius: 12px;
+            padding: 14px;
+            border-radius: 10px;
             font-weight: 800;
-            cursor: pointer;
-            transition: transform 0.2s;
             box-shadow: 0 4px 0 #d9b611;
         }
 
-        .btn-update:active {
-            transform: translateY(2px);
-            box-shadow: 0 2px 0 #d9b611;
-        }
-
-        /* TABLE DESIGN */
+        /* TABLE */
         .table-container {
             background: var(--surface);
-            border-radius: 20px;
-            overflow-x: auto;
+            border-radius: 16px;
             border: 1px solid #e2e8f0;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            min-width: 800px;
+            min-width: 500px;
+            /* Minimum width to prevent data overlap */
         }
 
         th {
             background: #f8fafc;
-            padding: 18px 15px;
-            text-align: center;
-            font-size: 0.75rem;
+            padding: 12px 10px;
+            font-size: 0.65rem;
             text-transform: uppercase;
             color: var(--text-muted);
             border-bottom: 2px solid #f1f5f9;
         }
 
         td {
-            padding: 15px;
+            padding: 12px 10px;
             border-bottom: 1px solid #f1f5f9;
             text-align: center;
-            font-size: 0.95rem;
+            font-size: 0.85rem;
         }
 
         .sticky-col {
@@ -262,83 +223,59 @@
             background: white;
             z-index: 5;
             text-align: left;
-            padding-left: 25px;
+            min-width: 140px;
             border-right: 1px solid #f1f5f9;
         }
 
         .comp-name {
             font-weight: 700;
             color: var(--ph-blue);
+            font-size: 0.85rem;
             display: block;
         }
 
         .comp-id {
-            font-size: 0.7rem;
+            font-size: 0.65rem;
             color: var(--text-muted);
-            font-weight: 600;
+        }
+
+        .badge-main,
+        .badge-red {
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-weight: 800;
+            font-size: 0.75rem;
+            color: white;
         }
 
         .badge-main {
             background: var(--ph-blue);
-            color: white;
-            padding: 4px 12px;
-            border-radius: 8px;
-            font-weight: 800;
         }
 
         .badge-red {
             background: var(--ph-red);
-            color: white;
-            padding: 4px 12px;
-            border-radius: 8px;
-            font-weight: 800;
         }
 
-        .medal-box span {
-            font-weight: 800;
-            margin: 0 3px;
-            font-size: 1.1rem;
-        }
-
-        .m1 {
-            color: #f59e0b;
-        }
-
-        .m2 {
-            color: #94a3b8;
-        }
-
-        .m3 {
-            color: #d97706;
-        }
-
+        /* PAGINATION */
         .pagination {
             display: flex;
-            justify-content: center;
+            justify-content: space-between;
             align-items: center;
-            gap: 20px;
-            margin: 40px 0;
+            margin: 24px 0;
         }
 
         .pg-btn {
             text-decoration: none;
             color: var(--ph-red);
             font-weight: 800;
-            font-size: 0.9rem;
-            padding: 10px 20px;
-            border-radius: 10px;
-        }
-
-        .pg-btn:hover {
-            background: #fef2f2;
+            font-size: 0.8rem;
+            padding: 8px 12px;
         }
 
         .pg-current {
-            background: var(--ph-blue);
-            color: white;
-            padding: 8px 24px;
-            border-radius: 10px;
+            font-size: 0.8rem;
             font-weight: 700;
+            color: var(--text-muted);
         }
 
         .disabled {
@@ -346,47 +283,79 @@
             pointer-events: none;
         }
 
+        /* DESKTOP QUERIES */
+        @media (min-width: 768px) {
+            .nav-brand {
+                font-size: 1.2rem;
+            }
+
+            .nav-link {
+                font-size: 0.9rem;
+                padding: 8px 16px;
+            }
+
+            .hero-section {
+                padding: 60px 40px;
+                text-align: left;
+            }
+
+            .hero-content h1 {
+                font-size: 2.5rem;
+            }
+
+            .event-grid {
+                grid-template-columns: repeat(auto-fill, minmax(95px, 1fr));
+            }
+
+            .controls {
+                flex-direction: row;
+            }
+
+            .pg-btn {
+                padding: 10px 20px;
+                background: #fff;
+                border-radius: 10px;
+                border: 1px solid #e2e8f0;
+            }
+        }
+
         footer {
             text-align: center;
-            padding: 60px;
+            padding: 40px;
             color: var(--text-muted);
-            font-weight: 600;
-            font-size: 0.85rem;
+            font-size: 0.75rem;
         }
     </style>
 </head>
 
 <body>
-
     <nav class="navbar">
-        <a href="/" class="nav-brand">🇵🇭 <span>PH RANKINGS</span></a>
+        <a href="/" class="nav-brand">🇵🇭 RANKINGS</a>
         <div class="nav-links">
-            <a href="/" class="nav-link">Leaderboard</a>
-            <a href="/battle" class="nav-link">Competitor Battle</a>
-            <a href="/best-of-ph" class="nav-link">Best of PH</a>
+            <a href="/" class="nav-link active">Leaderboard</a>
+            <a href="/battle" class="nav-link">Battle</a>
+            <a href="/best-of-ph" class="nav-link">Best</a>
         </div>
     </nav>
 
     <div class="container">
         <header class="hero-section">
             <div class="hero-content">
-                <h1>National Ranking Analytics</h1>
-                <div class="hero-subtitle">Official Philippines Speedcubing Statistical Leaderboards</div>
-                <div class="data-badge">WCA DATA: {{ updated }}</div>
+                <h1>National Rankings</h1>
+                <div class="hero-subtitle">Official Philippines Statistical Leaderboards</div>
+                <div class="data-badge">WCA: {{ updated }}</div>
             </div>
         </header>
 
         <div class="card">
             <form method="POST">
                 <div class="section-header">
-                    <h2>Event Selection</h2>
-                    <div style="display: flex; gap: 15px;">
+                    <h2>Events</h2>
+                    <div style="display: flex; gap: 10px;">
                         <span onclick="toggleAll(true)"
-                            style="cursor:pointer; color:var(--ph-blue); font-size:0.75rem; font-weight:800;">[ SELECT
-                            ALL ]</span>
+                            style="cursor:pointer; color:var(--ph-blue); font-size:0.65rem; font-weight:800;">ALL</span>
                         <span onclick="toggleAll(false)"
-                            style="cursor:pointer; color:var(--ph-red); font-size:0.75rem; font-weight:800;">[ CLEAR
-                            ]</span>
+                            style="cursor:pointer; color:var(--ph-red); font-size:0.65rem; font-weight:800;">CLEAR</span>
                     </div>
                 </div>
                 <div class="event-grid">
@@ -404,37 +373,27 @@
                         <option value="average" {% if type=='average' %}selected{% endif %}>Sum of Ranks (Averages)
                         </option>
                         <option value="kinch" {% if type=='kinch' %}selected{% endif %}>Kinch Ranks</option>
-                        <option value="level" {% if type=='level' %}selected{% endif %}>Cuber Percentile Level</option>
-                        <option value="podium" {% if type=='podium' %}selected{% endif %}>All-Time Podium Tally</option>
-                        <option value="streak" {% if type=='streak' %}selected{% endif %}>Winning Streak (Finals)
-                        </option>
+                        <option value="level" {% if type=='level' %}selected{% endif %}>Percentile Level</option>
+                        <option value="podium" {% if type=='podium' %}selected{% endif %}>Podium Tally</option>
+                        <option value="streak" {% if type=='streak' %}selected{% endif %}>Winning Streak</option>
                     </select>
                     <button type="submit" class="btn-update">APPLY FILTERS</button>
                 </div>
             </form>
         </div>
 
-        <div class="pagination">
-            <a href="?page={{ page-1 }}&rank_type={{ type }}{% for ev in selected %}&events={{ ev }}{% endfor %}"
-                class="pg-btn {{ 'disabled' if page <= 1 }}">← PREV</a>
-            <div class="pg-current">PAGE {{ page }} / {{ total_pages }}</div>
-            <a href="?page={{ page+1 }}&rank_type={{ type }}{% for ev in selected %}&events={{ ev }}{% endfor %}"
-                class="pg-btn {{ 'disabled' if page >= total_pages }}">NEXT →</a>
-        </div>
-
         <div class="table-container">
             <table>
                 <thead>
                     <tr>
-                        <th style="width: 60px;">#</th>
+                        <th style="width: 40px;">#</th>
                         <th class="sticky-col">Competitor</th>
-                        <th style="width: 180px;">Score</th>
+                        <th style="width: 100px;">Score</th>
                         {% for ev in selected %}<th>{{ events[ev] }}</th>{% endfor %}
                     </tr>
                 </thead>
                 <tbody>
                     {% for p in leaderboard %}
-                    {% if (type in ['single', 'average'] and p.total > 0) or type not in ['single', 'average'] %}
                     <tr>
                         <td style="color: var(--text-muted); font-weight: 700;">{{ (page-1)*50 + loop.index }}</td>
                         <td class="sticky-col">
@@ -443,17 +402,15 @@
                         </td>
                         <td>
                             {% if type == 'podium' %}
-                            <div class="medal-box">
-                                <span class="m1">{{ p.gold }}</span>
-                                <span class="m2">{{ p.silver }}</span>
-                                <span class="m3">{{ p.bronze }}</span>
+                            <div style="font-size: 0.8rem; font-weight: 800;">
+                                <span style="color: #f59e0b;">{{ p.gold }}</span>
+                                <span style="color: #94a3b8;">{{ p.silver }}</span>
+                                <span style="color: #d97706;">{{ p.bronze }}</span>
                             </div>
-                            {% elif type == 'streak' %}
-                            <span class="badge-red">{{ p.total }} WINS</span>
-                            {% elif type in ['kinch', 'level'] %}
-                            <span class="badge-red">{{ p.total }}{{ '%' if type == 'kinch' }}</span>
                             {% else %}
-                            <span class="badge-main">{{ p.total }}</span>
+                            <span class="{{ 'badge-red' if type in ['kinch', 'streak', 'level'] else 'badge-main' }}">
+                                {{ p.total }}{{ '%' if type == 'kinch' }}
+                            </span>
                             {% endif %}
                         </td>
                         {% for ev in selected %}
@@ -462,16 +419,20 @@
                         </td>
                         {% endfor %}
                     </tr>
-                    {% endif %}
                     {% endfor %}
                 </tbody>
             </table>
         </div>
 
-        <footer>
-            Philippine Speedcubing Analytics • 2026<br>
-            Data provided by WCA Export
-        </footer>
+        <div class="pagination">
+            <a href="?page={{ page-1 }}&rank_type={{ type }}{% for ev in selected %}&events={{ ev }}{% endfor %}"
+                class="pg-btn {{ 'disabled' if page <= 1 }}">← PREV</a>
+            <div class="pg-current">{{ page }} / {{ total_pages }}</div>
+            <a href="?page={{ page+1 }}&rank_type={{ type }}{% for ev in selected %}&events={{ ev }}{% endfor %}"
+                class="pg-btn {{ 'disabled' if page >= total_pages }}">NEXT →</a>
+        </div>
+
+        <footer>Philippine Speedcubing Analytics • 2026</footer>
     </div>
 
     <script>

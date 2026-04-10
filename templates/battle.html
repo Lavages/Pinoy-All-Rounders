@@ -19,7 +19,7 @@
             --text-muted: #64748b;
             --win-blue-bg: #eff6ff;
             --win-red-bg: #fef2f2;
-            --nav-height: 70px;
+            --nav-height: 64px;
         }
 
         body {
@@ -27,7 +27,7 @@
             background-color: var(--bg-light);
             color: var(--text-main);
             margin: 0;
-            padding: 0;
+            -webkit-font-smoothing: antialiased;
         }
 
         /* NAVBAR */
@@ -36,7 +36,7 @@
             background: var(--surface);
             display: flex;
             align-items: center;
-            padding: 0 5%;
+            padding: 0 20px;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
             position: sticky;
             top: 0;
@@ -45,58 +45,40 @@
 
         .nav-brand {
             font-weight: 800;
-            font-size: 1.2rem;
             color: var(--ph-blue);
-            display: flex;
-            align-items: center;
-            gap: 10px;
             text-decoration: none;
-            margin-right: 40px;
-        }
-
-        .nav-link {
-            text-decoration: none;
-            color: var(--text-muted);
-            font-weight: 600;
-            font-size: 0.9rem;
-            padding: 8px 16px;
-            border-radius: 8px;
-        }
-
-        .nav-link.active {
-            color: var(--ph-blue);
-            background: var(--win-blue-bg);
+            font-size: 1.1rem;
         }
 
         .container {
             max-width: 1100px;
-            margin: 30px auto;
-            padding: 0 20px;
+            margin: 20px auto;
+            padding: 0 16px;
         }
 
         /* BATTLE HEADER */
         .battle-header {
             background: var(--surface);
-            padding: 30px;
+            padding: 24px;
             border-radius: 20px;
             border: 1px solid #e2e8f0;
-            margin-bottom: 25px;
-            text-align: center;
+            margin-bottom: 20px;
         }
 
         .battle-inputs {
             display: flex;
+            flex-direction: column;
+            /* Stacked on mobile */
             align-items: center;
-            justify-content: center;
-            gap: 15px;
-            margin-top: 20px;
+            gap: 12px;
         }
 
         .battle-inputs input {
-            padding: 12px 18px;
-            border-radius: 10px;
-            border: 1px solid #e2e8f0;
-            width: 260px;
+            padding: 14px 18px;
+            border-radius: 12px;
+            border: 2px solid #e2e8f0;
+            width: 100%;
+            box-sizing: border-box;
             font-family: inherit;
             font-weight: 600;
             background: #f8fafc;
@@ -106,98 +88,106 @@
             font-weight: 900;
             color: var(--ph-red);
             font-style: italic;
+            font-size: 1.2rem;
         }
 
         .btn-fight {
             background: var(--ph-yellow);
             color: var(--ph-blue);
             border: none;
-            padding: 12px 30px;
-            border-radius: 10px;
+            width: 100%;
+            /* Full width on mobile */
+            padding: 14px;
+            border-radius: 12px;
             font-weight: 800;
             cursor: pointer;
-            box-shadow: 0 3px 0 #d9b611;
+            box-shadow: 0 4px 0 #d9b611;
         }
 
-        /* CHARTS & SUMMARY */
+        /* RESULTS LAYOUT */
         .results-layout {
             display: grid;
-            grid-template-columns: 1fr 350px;
+            grid-template-columns: 1fr;
+            /* Stacked on mobile */
             gap: 20px;
-            margin-bottom: 25px;
+            margin-bottom: 20px;
         }
 
         .card {
             background: var(--surface);
             border-radius: 20px;
-            padding: 25px;
+            padding: 20px;
             border: 1px solid #e2e8f0;
         }
 
         .summary-card {
             background: var(--ph-blue);
             color: white;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
             text-align: center;
+            padding: 30px 20px;
         }
 
         .score-display {
-            font-size: 3.5rem;
+            font-size: 3rem;
             font-weight: 800;
-            line-height: 1;
-            margin: 15px 0;
+            margin: 10px 0;
         }
 
-        /* EVENT COMPARISON TABLE (SHADED STYLE) */
+        /* TABLE SECTION */
         .table-card {
             background: var(--surface);
             border-radius: 20px;
             border: 1px solid #e2e8f0;
             overflow: hidden;
+            margin-bottom: 40px;
         }
 
         .table-title {
-            padding: 20px 25px;
+            padding: 20px;
             font-weight: 800;
-            font-size: 1.1rem;
+            background: #fff;
             border-bottom: 1px solid #f1f5f9;
+        }
+
+        /* Horizontal Scroll for Table on Mobile */
+        .table-responsive {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            table-layout: fixed;
+            min-width: 600px;
+            /* Ensures table doesn't squish too much */
         }
 
         th {
             background: #f8fafc;
-            padding: 12px;
-            font-size: 0.7rem;
+            padding: 12px 8px;
+            font-size: 0.65rem;
             text-transform: uppercase;
             color: var(--text-muted);
             border-bottom: 1px solid #e2e8f0;
         }
 
         td {
-            padding: 12px;
+            padding: 14px 8px;
             text-align: center;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             border-bottom: 1px solid #f8fafc;
-            font-weight: 500;
         }
 
         .event-name {
             text-align: left;
-            padding-left: 25px;
+            padding-left: 20px;
             font-weight: 700;
-            color: var(--text-main);
-            background: #ffffff;
+            position: sticky;
+            left: 0;
+            background: white;
+            z-index: 10;
         }
 
-        /* Winning Cell Highlights */
         .c1-win {
             background-color: var(--win-blue-bg) !important;
             color: var(--ph-blue);
@@ -210,22 +200,44 @@
             font-weight: 700;
         }
 
-        /* Tally Footer */
         .tally-footer {
-            padding: 15px;
+            padding: 20px;
             text-align: center;
             font-weight: 800;
-            font-size: 0.95rem;
-            border-top: 2px solid #f1f5f9;
             background: #fff;
+            border-top: 1px solid #f1f5f9;
         }
 
-        .tally-blue {
-            color: var(--ph-blue);
-        }
+        /* DESKTOP REFINEMENTS */
+        @media (min-width: 768px) {
+            .battle-inputs {
+                flex-direction: row;
+            }
 
-        .tally-red {
-            color: var(--ph-red);
+            .battle-inputs input {
+                width: 260px;
+            }
+
+            .btn-fight {
+                width: auto;
+                padding: 12px 30px;
+            }
+
+            .results-layout {
+                grid-template-columns: 1fr 350px;
+            }
+
+            .nav-brand {
+                font-size: 1.2rem;
+            }
+
+            th {
+                font-size: 0.7rem;
+            }
+
+            td {
+                font-size: 0.9rem;
+            }
         }
 
         footer {
@@ -233,19 +245,17 @@
             padding: 40px;
             color: var(--text-muted);
             font-size: 0.8rem;
-            font-weight: 600;
         }
     </style>
 </head>
 
 <body>
-
     <nav class="navbar">
-        <a href="/" class="nav-brand">🇵🇭 <span>PH RANKINGS</span></a>
+        <a href="/" class="nav-brand">🇵🇭 RANKINGS</a>
         <div class="nav-links">
-            <a href="/" class="nav-link">Leaderboard</a>
-            <a href="/battle" class="nav-link">Competitor Battle</a>
-            <a href="/best-of-ph" class="nav-link" style="color:var(--ph-blue)">Best of PH</a>
+            <a href="/" class="nav-link active">Leaderboard</a>
+            <a href="/battle" class="nav-link">Battle</a>
+            <a href="/best-of-ph" class="nav-link">Best</a>
         </div>
     </nav>
 
@@ -264,54 +274,54 @@
         {% if comp1 and comp2 %}
         <div class="results-layout">
             <div class="card">
-                <canvas id="kinchChart" height="250"></canvas>
+                <canvas id="kinchChart"></canvas>
             </div>
 
             <div class="card summary-card">
                 <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 2px; opacity: 0.8;">
                     Head-to-Head Win Rate</div>
                 <div class="score-display">{{ summary.c1_wins }} : {{ summary.c2_wins }}</div>
-                <div style="font-weight: 700; font-size: 0.85rem;">{{ comp1.person_name.split()[0] }} vs {{
+                <div style="font-weight: 700; font-size: 0.9rem;">{{ comp1.person_name.split()[0] }} vs {{
                     comp2.person_name.split()[0] }}</div>
             </div>
         </div>
 
         <div class="table-card">
             <div class="table-title">Event Comparison</div>
-            <table>
-                <thead>
-                    <tr>
-                        <th rowspan="2" style="width: 15%;">Event</th>
-                        <th colspan="2" style="border-bottom: 1px solid #e2e8f0; color: var(--ph-blue);">{{
-                            comp1.person_name }}</th>
-                        <th colspan="2" style="border-bottom: 1px solid #e2e8f0; color: var(--ph-red);">{{
-                            comp2.person_name }}</th>
-                    </tr>
-                    <tr>
-                        <th>Single</th>
-                        <th>Average</th>
-                        <th>Single</th>
-                        <th>Average</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in battle_data %}
-                    <tr>
-                        <td class="event-name">{{ row.event }}</td>
-
-                        <td class="{{ 'c1-win' if row.win_s == 'c1' }}">{{ row.c1_s }}</td>
-                        <td class="{{ 'c1-win' if row.win_a == 'c1' }}">{{ row.c1_a }}</td>
-
-                        <td class="{{ 'c2-win' if row.win_s == 'c2' }}">{{ row.c2_s }}</td>
-                        <td class="{{ 'c2-win' if row.win_a == 'c2' }}">{{ row.c2_a }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th rowspan="2" style="width: 20%;">Event</th>
+                            <th colspan="2" style="color: var(--ph-blue); border-bottom: 1px solid #e2e8f0;">{{
+                                comp1.person_name }}</th>
+                            <th colspan="2" style="color: var(--ph-red); border-bottom: 1px solid #e2e8f0;">{{
+                                comp2.person_name }}</th>
+                        </tr>
+                        <tr>
+                            <th>Single</th>
+                            <th>Average</th>
+                            <th>Single</th>
+                            <th>Average</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in battle_data %}
+                        <tr>
+                            <td class="event-name">{{ row.event }}</td>
+                            <td class="{{ 'c1-win' if row.win_s == 'c1' }}">{{ row.c1_s }}</td>
+                            <td class="{{ 'c1-win' if row.win_a == 'c1' }}">{{ row.c1_a }}</td>
+                            <td class="{{ 'c2-win' if row.win_s == 'c2' }}">{{ row.c2_s }}</td>
+                            <td class="{{ 'c2-win' if row.win_a == 'c2' }}">{{ row.c2_a }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
             <div class="tally-footer">
-                <span class="tally-blue">{{ summary.c1_wins }}wins</span>
-                <span style="margin: 0 20px; color: #cbd5e1;">0draw</span>
-                <span class="tally-red">{{ summary.c2_wins }}wins</span>
+                <span style="color: var(--ph-blue)">{{ summary.c1_wins }} Wins</span>
+                <span style="margin: 0 15px; color: #cbd5e1;">•</span>
+                <span style="color: var(--ph-red)">{{ summary.c2_wins }} Wins</span>
             </div>
         </div>
         {% endif %}
@@ -321,7 +331,8 @@
 
     {% if kinch %}
     <script>
-        new Chart(document.getElementById('kinchChart'), {
+        const ctx = document.getElementById('kinchChart').getContext('2d');
+        new Chart(ctx, {
             type: 'radar',
             data: {
                 labels: {{ kinch.c1.keys() | list | tojson }},
@@ -342,8 +353,9 @@
                 }]
             },
             options: {
+            maintainAspectRatio: true,
             scales: { r: { beginAtZero: true, max: 100, ticks: { display: false } } },
-            plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { weight: 'bold' } } } }
+            plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { weight: 'bold', size: 10 } } } }
         }
         });
     </script>
